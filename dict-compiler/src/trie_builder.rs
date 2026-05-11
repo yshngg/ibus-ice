@@ -230,6 +230,65 @@ impl DoubleArrayTrie {
         results
     }
 
+    pub fn len(&self) -> usize {
+        self.base.len()
+    }
+
+    pub fn serialize<W: std::io::Write>(&self, writer: &mut W, entries: &[DictEntry]) -> std::io::Result<()> {
+        let num_entries = entries.len() as u32;
+        let trie_byte_size = (self.base.len() * 4 * 2) as u64; // base + check
+
+        // HEADER (64 bytes)
+        writer.write_all(b"IBUSICE")?;
+        writer.write_all(&1u32.to_le_bytes())?;       // version
+        writer.write_all(&num_entries.to_le_bytes())?;
+        writer.write_all(&64u64.to_le_bytes())?;       // trie_offset
+        writer.write_all(&(64 + trie_byte_size).to_le_bytes())?; // payload_offset
+        let padding = [0u8; 33];
+        writer.write_all(&padding)?;
+
+        // TRIE: base[] then check[]
+        for &b in &self.base {
+            writer.write_all(&b.to_le_bytes())?;
+        }
+        for &c in &self.check {
+            writer.write_all(&c.to_le_bytes())?;
+        }
+
+        // PAYLOAD: offset table + entries
+        let offset_table_size = (num_entries as usize) * 4;
+
+        // Build entries first to calculate offsets
+        let mut payload_buf: Vec<u8> = Vec::new();
+        let mut offsets: Vec<u32> = Vec::new();
+        let mut current_offset: u32 = offset_table_size as u32; // relative to entries_start
+
+        for entry in entries {
+            offsets.push(current_offset);
+            let text_bytes = entry.text.as_bytes();
+            let text_len = text_bytes.len() as u16;
+            // text_len (2 bytes, LE)
+            payload_buf.extend_from_slice(&text_len.to_le_bytes());
+            // text bytes (UTF-8)
+            payload_buf.extend_from_slice(text_bytes);
+            // freq (4 bytes, LE)
+            payload_buf.extend_from_slice(&entry.freq.to_le_bytes());
+            // word_len (1 byte)
+            let word_len = entry.text.chars().count() as u8;
+            payload_buf.push(word_len);
+            current_offset += 2 + text_bytes.len() as u32 + 5;
+        }
+
+        // Write offset table
+        for &off in &offsets {
+            writer.write_all(&off.to_le_bytes())?;
+        }
+        // Write entries
+        writer.write_all(&payload_buf)?;
+
+        Ok(())
+    }
+
     fn collect_leaves(&self, node: usize, results: &mut Vec<usize>) {
         if self.base[node] <= 0 {
             let payload_id = (-self.base[node] - 1) as usize;
@@ -294,5 +353,19 @@ mod tests {
         let trie = DoubleArrayTrie::build(&entries);
         let ids = trie.lookup("abc");
         assert!(ids.is_empty());
+    }
+
+    #[test]
+    fn test_roundtrip_serialize() {
+        let entries = vec![
+            make_entry("中国", "zhong guo", 200),
+        ];
+        let trie = DoubleArrayTrie::build(&entries);
+
+        let mut buf = Vec::new();
+        trie.serialize(&mut buf, &entries).unwrap();
+
+        // Verify magic
+        assert_eq!(&buf[0..7], b"IBUSICE");
     }
 }
