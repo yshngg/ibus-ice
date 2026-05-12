@@ -1,3 +1,4 @@
+use crate::debug_result::IceDebugResult;
 use crate::engine::IceEngine;
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
@@ -122,4 +123,25 @@ pub extern "C" fn ice_reset(handle: *mut IceEngineHandle) {
     }
     let engine = unsafe { &mut (*handle).engine };
     engine.reset();
+}
+
+#[no_mangle]
+pub extern "C" fn ice_debug_process(
+    handle: *mut IceEngineHandle,
+    pinyin: *const c_char,
+) -> *mut IceDebugResult {
+    if handle.is_null() || pinyin.is_null() {
+        return std::ptr::null_mut();
+    }
+    let engine = unsafe { &(*handle).engine };
+    let pinyin = unsafe { CStr::from_ptr(pinyin) }.to_string_lossy();
+    let json = engine.debug_process(&pinyin);
+    Box::into_raw(IceDebugResult::from_json(json))
+}
+
+#[no_mangle]
+pub extern "C" fn ice_debug_result_free(result: *mut IceDebugResult) {
+    if !result.is_null() {
+        unsafe { drop(Box::from_raw(result)) };
+    }
 }

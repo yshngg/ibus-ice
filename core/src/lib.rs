@@ -6,3 +6,4 @@ pub mod ranker;
 pub mod userdict;
 pub mod engine;
 pub mod ffi;
+pub mod debug_result;
