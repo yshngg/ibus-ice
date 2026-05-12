@@ -10,7 +10,7 @@ from gi.repository import GLib
 from gi.repository import IBus
 from gi.repository import GObject
 
-from .ffi import Engine
+from ffi import Engine
 
 
 class IceIBusEngine(IBus.Engine):

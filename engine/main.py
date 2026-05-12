@@ -14,10 +14,7 @@ from gi.repository import IBus
 from gi.repository import GLib
 from gi.repository import GObject
 
-# Ensure the engine package is importable
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-import ibus_ice.engine
+import engine
 
 
 class IMApp:
