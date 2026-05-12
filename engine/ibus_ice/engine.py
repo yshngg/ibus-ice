@@ -4,6 +4,7 @@
 # License: GPLv3
 
 import os
+import sys
 
 from gi.repository import GLib
 from gi.repository import IBus
@@ -12,11 +13,13 @@ from gi.repository import GObject
 from .ffi import Engine
 
 
-DATA_DIR = "/usr/local/share/ibus-ice"
-
-
 class IceIBusEngine(IBus.Engine):
     __gtype_name__ = "IceIBusEngine"
+
+    DICT_PATH = os.environ.get(
+        "IBUS_ICE_DATA_DIR", "/usr/local/share/ibus-ice"
+    ) + "/ice.dict"
+    USER_DICT_PATH = os.path.expanduser("~/.local/share/ibus-ice/user.dict")
 
     def __init__(self, bus, object_path, engine_name):
         super().__init__(
@@ -25,15 +28,12 @@ class IceIBusEngine(IBus.Engine):
             connection=bus.get_connection(),
         )
 
-        dict_path = f"{DATA_DIR}/ice.dict"
-        user_dict_path = os.path.expanduser("~/.local/share/ibus-ice/user.dict")
-
-        os.makedirs(os.path.dirname(user_dict_path), exist_ok=True)
+        os.makedirs(os.path.dirname(self.USER_DICT_PATH), exist_ok=True)
 
         try:
-            self._engine = Engine(dict_path, user_dict_path)
+            self._engine = Engine(self.DICT_PATH, self.USER_DICT_PATH)
         except RuntimeError as e:
-            print(f"ibus-ice: Failed to initialize engine: {e}")
+            print(f"ibus-ice: Failed to initialize engine: {e}", file=sys.stderr)
             self._engine = None
 
         self._pinyin_buffer = ""

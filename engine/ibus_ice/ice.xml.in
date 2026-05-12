@@ -3,7 +3,7 @@
 <component>
   <name>org.freedesktop.IBus.Ice</name>
   <description>Ice Chinese Input Method</description>
-  <exec>/usr/local/libexec/ibus-engine-ice --ibus</exec>
+  <exec>@libexecdir@/ibus-engine-ice --ibus</exec>
   <version>0.1.0</version>
   <author>ibus-ice contributors</author>
   <license>GPLv3</license>

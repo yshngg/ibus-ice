@@ -1,5 +1,9 @@
 #!/bin/sh
 # ibus-ice - Ice Chinese Input Method engine for IBus
-# Shell wrapper to launch the Python engine with correct PYTHONPATH
+# Shell wrapper to launch the Python engine
+
+# PYTHONDIR is substituted at install time by the Makefile
+IBUS_ICE_DATA_DIR="@datadir@"
+export IBUS_ICE_DATA_DIR
 
 exec /usr/bin/python3 -m ibus_ice.engine_main --ibus "$@"
