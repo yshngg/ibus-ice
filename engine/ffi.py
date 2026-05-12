@@ -23,17 +23,9 @@ class IceCandidateList(Structure):
 def _find_lib() -> str:
     """Find the libibus_ice_core.so shared library."""
     paths = [
+        os.path.join(os.path.dirname(__file__), "..", "target", "debug", "libcore.so"),
         os.path.join(
-            os.path.dirname(__file__), "..", "..", "..", "target", "debug", "libcore.so"
-        ),
-        os.path.join(
-            os.path.dirname(__file__),
-            "..",
-            "..",
-            "..",
-            "target",
-            "release",
-            "libcore.so",
+            os.path.dirname(__file__), "..", "target", "release", "libcore.so"
         ),
         "/usr/lib/ibus-ice/libibus_ice_core.so",
         "/usr/local/lib/ibus-ice/libibus_ice_core.so",

@@ -236,7 +236,7 @@ impl DoubleArrayTrie {
         let offset_table_size = (num_entries as usize) * 4;
         let mut payload_buf: Vec<u8> = Vec::new();
         let mut offsets: Vec<u32> = Vec::new();
-        let mut current_offset: u32 = offset_table_size as u32;
+        let mut current_offset: u32 = 0;
 
         for entry in entries {
             offsets.push(current_offset);

@@ -37,7 +37,7 @@ class IMApp:
             "/usr/local/libexec/ibus-engine-ice",
             "ibus-ice",
         )
-        engine = IBus.EngineDesc.new(
+        eng = IBus.EngineDesc.new(
             "ice",
             "Ice",
             "Ice Chinese Input Method",
@@ -47,7 +47,7 @@ class IMApp:
             "",
             "us",
         )
-        component.add_engine(engine)
+        component.add_engine(eng)
         return component
 
     def run(self):
@@ -62,11 +62,59 @@ def launch_engine(exec_by_ibus):
     IMApp(exec_by_ibus).run()
 
 
+def cli_test():
+    """Terminal test: type pinyin, see candidates."""
+    from ffi import Engine
+
+    # Try env var, then project build dir, then installed path
+    data_dir = os.environ.get("IBUS_ICE_DATA_DIR", "")
+    if not data_dir:
+        candidates = [
+            os.path.join(os.path.dirname(__file__), "..", "build"),
+            os.path.join(os.path.dirname(__file__), "..", "target"),
+            "/usr/local/share/ibus-ice",
+        ]
+        for d in candidates:
+            if os.path.exists(os.path.join(d, "ice.dict")):
+                data_dir = d
+                break
+        if not data_dir:
+            print("Cannot find ice.dict. Set IBUS_ICE_DATA_DIR or run `make build-dict`.")
+            sys.exit(1)
+
+    dict_path = os.environ.get("IBUS_ICE_DICT", os.path.join(data_dir, "ice.dict"))
+
+    user_dir = os.path.expanduser("~/.local/share/ibus-ice/user.dict")
+
+    e = Engine(dict_path, user_dir)
+    print("===== ibus-ice CLI =====")
+    print("Type pinyin (e.g. zhongguo), Ctrl-C to quit.\n")
+    try:
+        while True:
+            try:
+                pinyin = input("> ").strip()
+            except EOFError:
+                break
+            if not pinyin:
+                continue
+            results = e.process(pinyin)
+            if not results:
+                print("  (no candidates)")
+            else:
+                for idx, c in enumerate(results[:9]):
+                    print(f"  {idx + 1}. {c['text']}")
+            print()
+    except KeyboardInterrupt:
+        pass
+    print("bye.")
+
+
 def print_help(v=0):
     print("Usage: ibus-engine-ice [OPTIONS]")
-    print("-i, --ibus     executed by IBus daemon")
-    print("-h, --help     show this message")
+    print("-i, --ibus      executed by IBus daemon")
+    print("-h, --help      show this message")
     print("-d, --daemonize daemonize process")
+    print("-t, --test      terminal CLI test mode")
     sys.exit(v)
 
 
@@ -78,28 +126,34 @@ def main():
 
     exec_by_ibus = False
     daemonize = False
+    test_mode = False
 
-    shortopt = "ihd"
-    longopt = ["ibus", "help", "daemonize"]
+    shortopt = "ihdt"
+    longopt = ["ibus", "help", "daemonize", "test"]
 
     try:
         opts, args = getopt.getopt(sys.argv[1:], shortopt, longopt)
     except getopt.GetoptError:
         print_help(1)
 
-    for o, a in opts:
+    for o, _a in opts:
         if o in ("-h", "--help"):
             print_help()
         elif o in ("-d", "--daemonize"):
             daemonize = True
         elif o in ("-i", "--ibus"):
             exec_by_ibus = True
+        elif o in ("-t", "--test"):
+            test_mode = True
 
     if daemonize:
         if os.fork():
             sys.exit()
 
-    launch_engine(exec_by_ibus)
+    if test_mode:
+        cli_test()
+    else:
+        launch_engine(exec_by_ibus)
 
 
 if __name__ == "__main__":

@@ -80,12 +80,12 @@ impl Dictionary {
         self.collect_leaves(s, &mut ids);
 
         for id in ids {
-            let offset = unsafe { *self.payload_offsets.add(id) as usize };
+            let offset = unsafe { std::ptr::read_unaligned(self.payload_offsets.add(id)) as usize };
             let ptr = unsafe { self.payload_data.add(offset) };
-            let text_len = unsafe { *(ptr as *const u16) } as usize;
+            let text_len = unsafe { std::ptr::read_unaligned(ptr as *const u16) } as usize;
             let text_bytes = unsafe { std::slice::from_raw_parts(ptr.add(2), text_len) };
             let text = String::from_utf8_lossy(text_bytes).into_owned();
-            let freq = unsafe { *(ptr.add(2 + text_len) as *const u32) };
+            let freq = unsafe { std::ptr::read_unaligned(ptr.add(2 + text_len) as *const u32) };
             let word_len = unsafe { *ptr.add(2 + text_len + 4) };
 
             results.push(DictEntry { text, freq, word_len });

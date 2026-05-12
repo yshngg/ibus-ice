@@ -1,7 +1,10 @@
 import os
 import sys
 
-from gi.repository import GLib, GObject, IBus
+import gi
+
+gi.require_version("IBus", "1.0")  # noqa: E402
+from gi.repository import IBus
 
 from ffi import Engine
 
