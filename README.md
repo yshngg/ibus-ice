@@ -42,4 +42,4 @@ See [docs/architecture.md](docs/architecture.md) for the full design.
 
 ## License
 
-MIT
+[GPLv3](LICENSE)
