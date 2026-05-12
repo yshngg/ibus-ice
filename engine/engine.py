@@ -1,14 +1,7 @@
-# ibus-ice - Ice Chinese Input Method engine for IBus
-#
-# Copyright (c) 2024 ibus-ice contributors
-# License: GPLv3
-
 import os
 import sys
 
-from gi.repository import GLib
-from gi.repository import IBus
-from gi.repository import GObject
+from gi.repository import GLib, GObject, IBus
 
 from ffi import Engine
 
@@ -16,9 +9,9 @@ from ffi import Engine
 class IceIBusEngine(IBus.Engine):
     __gtype_name__ = "IceIBusEngine"
 
-    DICT_PATH = os.environ.get(
-        "IBUS_ICE_DATA_DIR", "/usr/local/share/ibus-ice"
-    ) + "/ice.dict"
+    DICT_PATH = (
+        os.environ.get("IBUS_ICE_DATA_DIR", "/usr/local/share/ibus-ice") + "/ice.dict"
+    )
     USER_DICT_PATH = os.path.expanduser("~/.local/share/ibus-ice/user.dict")
 
     def __init__(self, bus, object_path, engine_name):
@@ -110,10 +103,7 @@ class IceIBusEngine(IBus.Engine):
         return False
 
     def _is_pinyin_char(self, keyval):
-        return (
-            (IBus.KEY_a <= keyval <= IBus.KEY_z)
-            or keyval == IBus.KEY_apostrophe
-        )
+        return (IBus.KEY_a <= keyval <= IBus.KEY_z) or keyval == IBus.KEY_apostrophe
 
     def _update_candidates(self):
         if not self._pinyin_buffer:

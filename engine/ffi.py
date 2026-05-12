@@ -1,7 +1,8 @@
 """ctypes bindings for libibus_ice_core.so."""
+
 import ctypes
 import os
-from ctypes import c_char_p, c_int32, c_void_p, POINTER, Structure
+from ctypes import POINTER, Structure, c_char_p, c_int32, c_void_p
 
 
 class IceCandidate(Structure):
@@ -22,8 +23,18 @@ class IceCandidateList(Structure):
 def _find_lib() -> str:
     """Find the libibus_ice_core.so shared library."""
     paths = [
-        os.path.join(os.path.dirname(__file__), "..", "..", "..", "target", "debug", "libcore.so"),
-        os.path.join(os.path.dirname(__file__), "..", "..", "..", "target", "release", "libcore.so"),
+        os.path.join(
+            os.path.dirname(__file__), "..", "..", "..", "target", "debug", "libcore.so"
+        ),
+        os.path.join(
+            os.path.dirname(__file__),
+            "..",
+            "..",
+            "..",
+            "target",
+            "release",
+            "libcore.so",
+        ),
         "/usr/lib/ibus-ice/libibus_ice_core.so",
         "/usr/local/lib/ibus-ice/libibus_ice_core.so",
     ]
@@ -75,11 +86,13 @@ class Engine:
         clist = result.contents
         for i in range(clist.count):
             c = clist.candidates[i]
-            candidates.append({
-                "text": c.text.decode("utf-8") if c.text else "",
-                "freq": c.freq,
-                "word_len": c.word_len,
-            })
+            candidates.append(
+                {
+                    "text": c.text.decode("utf-8") if c.text else "",
+                    "freq": c.freq,
+                    "word_len": c.word_len,
+                }
+            )
 
         _lib.ice_candidates_free(result)
         return candidates

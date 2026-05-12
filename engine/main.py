@@ -1,18 +1,14 @@
-# ibus-ice - Ice Chinese Input Method engine for IBus
-#
-# Copyright (c) 2024 ibus-ice contributors
-# License: GPLv3
-
-import os
-import sys
 import getopt
 import locale
+import os
+import sys
+
+import gi
 
 import engine
 
-import gi
 gi.require_version("IBus", "1.0")  # noqa: E402
-from gi.repository import IBus, GLib, GObject
+from gi.repository import GLib, GObject, IBus
 
 
 class IMApp:
@@ -22,9 +18,7 @@ class IMApp:
         self._bus.connect("disconnected", self._bus_disconnected_cb)
 
         self._factory = IBus.Factory.new(self._bus.get_connection())
-        self._factory.add_engine(
-            "ice", GObject.type_from_name("IceIBusEngine")
-        )
+        self._factory.add_engine("ice", GObject.type_from_name("IceIBusEngine"))
 
         if exec_by_ibus:
             self._bus.request_name("org.freedesktop.IBus.Ice", 0)
