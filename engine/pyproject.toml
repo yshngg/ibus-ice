@@ -1,0 +1,6 @@
+[project]
+name = "ibus-ice"
+version = "0.1.0"
+description = "IBus engine for the Ice Chinese input method"
+requires-python = ">=3.10"
+dependencies = []

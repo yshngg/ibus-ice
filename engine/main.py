@@ -8,13 +8,11 @@ import sys
 import getopt
 import locale
 
-import gi
-gi.require_version("IBus", "1.0")
-from gi.repository import IBus
-from gi.repository import GLib
-from gi.repository import GObject
-
 import engine
+
+import gi
+gi.require_version("IBus", "1.0")  # noqa: E402
+from gi.repository import IBus, GLib, GObject
 
 
 class IMApp:
