@@ -3,8 +3,8 @@ use std::fs;
 
 pub struct Dictionary {
     _mmap: Mmap,
-    base: *const i32,
-    check: *const i32,
+    base: *const i64,
+    check: *const i64,
     trie_size: usize,
     #[allow(dead_code)]
     num_entries: u32,
@@ -43,10 +43,10 @@ impl Dictionary {
         let trie_offset = u64::from_le_bytes(mmap[15..23].try_into().unwrap()) as usize;
         let payload_offset = u64::from_le_bytes(mmap[23..31].try_into().unwrap()) as usize;
 
-        let trie_size = (payload_offset - trie_offset) / 8;
+        let trie_size = (payload_offset - trie_offset) / 16; // base + check, each 8 bytes
 
-        let base = unsafe { mmap.as_ptr().add(trie_offset) as *const i32 };
-        let check = unsafe { mmap.as_ptr().add(trie_offset + trie_size * 4) as *const i32 };
+        let base = unsafe { mmap.as_ptr().add(trie_offset) as *const i64 };
+        let check = unsafe { mmap.as_ptr().add(trie_offset + trie_size * 8) as *const i64 };
         let payload_offsets = unsafe { mmap.as_ptr().add(payload_offset) as *const u32 };
         let payload_data =
             unsafe { mmap.as_ptr().add(payload_offset + (num_entries as usize * 4)) };

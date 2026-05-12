@@ -1,12 +1,12 @@
 use crate::DictEntry;
 
 pub struct DoubleArrayTrie {
-    base: Vec<i32>,
-    check: Vec<i32>,
+    pub base: Vec<i64>,
+    pub check: Vec<i64>,
 }
 
 const ROOT: usize = 0;
-const INITIAL_SIZE: usize = 1024;
+const INITIAL_SIZE: usize = 524288;
 
 impl DoubleArrayTrie {
     pub fn build(entries: &[DictEntry]) -> Self {
@@ -21,8 +21,8 @@ impl DoubleArrayTrie {
 
         keys.sort_by(|a, b| a.0.cmp(&b.0));
 
-        let mut base = vec![0i32; INITIAL_SIZE];
-        let mut check = vec![-1i32; INITIAL_SIZE];
+        let mut base = vec![0i64; INITIAL_SIZE];
+        let mut check = vec![-1i64; INITIAL_SIZE];
 
         for (key, payload_id) in &keys {
             Self::insert(&mut base, &mut check, key, *payload_id as usize);
@@ -31,7 +31,7 @@ impl DoubleArrayTrie {
         DoubleArrayTrie { base, check }
     }
 
-    fn ensure_capacity(base: &mut Vec<i32>, check: &mut Vec<i32>, idx: usize) {
+    fn ensure_capacity(base: &mut Vec<i64>, check: &mut Vec<i64>, idx: usize) {
         if idx >= base.len() {
             let new_size = (idx + 256).next_power_of_two();
             base.resize(new_size, 0);
@@ -39,7 +39,16 @@ impl DoubleArrayTrie {
         }
     }
 
-    fn insert(base: &mut Vec<i32>, check: &mut Vec<i32>, key: &[u8], payload_id: usize) {
+    fn find_base(base: &mut Vec<i64>, check: &mut Vec<i64>, children: &[u8]) -> i64 {
+        // Always allocate at the end for O(1) performance
+        let max_c = children.iter().copied().max().unwrap_or(0) as usize;
+        let new_len = check.len() + max_c + 1;
+        base.resize(new_len, 0);
+        check.resize(new_len, -1);
+        check.len() as i64
+    }
+
+    fn insert(base: &mut Vec<i64>, check: &mut Vec<i64>, key: &[u8], payload_id: usize) {
         let mut s = ROOT;
         let mut i = 0;
 
@@ -56,8 +65,8 @@ impl DoubleArrayTrie {
 
                 let term_t = new_base as usize;
                 Self::ensure_capacity(base, check, term_t);
-                base[term_t] = -(saved_payload as i32 + 1);
-                check[term_t] = s as i32;
+                base[term_t] = -(saved_payload as i64 + 1);
+                check[term_t] = s as i64;
 
                 continue;
             }
@@ -66,11 +75,11 @@ impl DoubleArrayTrie {
             Self::ensure_capacity(base, check, t);
 
             if check[t] == -1 {
-                check[t] = s as i32;
+                check[t] = s as i64;
                 base[t] = 1;
                 s = t;
                 i += 1;
-            } else if check[t] == s as i32 {
+            } else if check[t] == s as i64 {
                 s = t;
                 i += 1;
             } else {
@@ -78,7 +87,7 @@ impl DoubleArrayTrie {
                 let mut children: Vec<u8> = Vec::new();
                 for c in 0u8..=255u8 {
                     let ct = old_base as usize + c as usize;
-                    if ct < check.len() && check[ct] == s as i32 {
+                    if ct < check.len() && check[ct] == s as i64 {
                         children.push(c);
                     }
                 }
@@ -96,7 +105,7 @@ impl DoubleArrayTrie {
                     let new_t = new_base as usize + c as usize;
                     Self::ensure_capacity(base, check, new_t);
                     base[new_t] = base[old_t];
-                    check[new_t] = s as i32;
+                    check[new_t] = s as i64;
                 }
 
                 for &c in &children {
@@ -106,19 +115,14 @@ impl DoubleArrayTrie {
                     let old_t = old_base as usize + c as usize;
                     let new_t = new_base as usize + c as usize;
                     if base[old_t] > 0 {
-                        let mut grandkids: Vec<u8> = Vec::new();
                         for gk in 0u8..=255u8 {
                             let gk_old = base[old_t] as usize + gk as usize;
-                            if gk_old < check.len() && check[gk_old] == old_t as i32 {
-                                grandkids.push(gk);
+                            if gk_old < check.len() && check[gk_old] == old_t as i64 {
+                                let gk_new = base[new_t] as usize + gk as usize;
+                                Self::ensure_capacity(base, check, gk_new);
+                                base[gk_new] = base[gk_old];
+                                check[gk_new] = new_t as i64;
                             }
-                        }
-                        for &gk in &grandkids {
-                            let gk_old = base[old_t] as usize + gk as usize;
-                            let gk_new = base[new_t] as usize + gk as usize;
-                            Self::ensure_capacity(base, check, gk_new);
-                            base[gk_new] = base[gk_old];
-                            check[gk_new] = new_t as i32;
                         }
                     }
                 }
@@ -127,20 +131,19 @@ impl DoubleArrayTrie {
             }
         }
 
-        // Store payload. Chain duplicates if a leaf already exists at this node.
         if base[s] < 0 {
             let old_payload = (-base[s] - 1) as usize;
             base[s] = 0;
             let new_base = Self::find_base(base, check, &[0u8, 1u8]);
             base[s] = new_base;
             Self::ensure_capacity(base, check, new_base as usize + 1);
-            base[new_base as usize] = -(old_payload as i32 + 1);
-            check[new_base as usize] = s as i32;
-            base[new_base as usize + 1] = -(payload_id as i32 + 1);
-            check[new_base as usize + 1] = s as i32;
+            base[new_base as usize] = -(old_payload as i64 + 1);
+            check[new_base as usize] = s as i64;
+            base[new_base as usize + 1] = -(payload_id as i64 + 1);
+            check[new_base as usize + 1] = s as i64;
         } else if base[s] > 0 {
             let old_base = base[s];
-            let mut slot = 0u8;
+            let mut slot = 0u32;
             loop {
                 let ct = old_base as usize + slot as usize;
                 if ct >= check.len() || check[ct] == -1 {
@@ -148,13 +151,13 @@ impl DoubleArrayTrie {
                 }
                 slot += 1;
             }
-            let children = if slot == 0 { vec![0u8] } else { vec![slot] };
+            let children = if slot == 0 { vec![0u8] } else { vec![slot as u8] };
             let new_base = Self::find_base(base, check, &children);
             if new_base != old_base {
                 let mut all_children: Vec<u8> = Vec::new();
                 for c in 0u8..=255u8 {
                     let ct = old_base as usize + c as usize;
-                    if ct < check.len() && check[ct] == s as i32 {
+                    if ct < check.len() && check[ct] == s as i64 {
                         all_children.push(c);
                     }
                 }
@@ -163,21 +166,16 @@ impl DoubleArrayTrie {
                     let new_t = new_base as usize + c as usize;
                     Self::ensure_capacity(base, check, new_t);
                     base[new_t] = base[old_t];
-                    check[new_t] = s as i32;
+                    check[new_t] = s as i64;
                     if base[old_t] > 0 {
-                        let mut grandkids: Vec<u8> = Vec::new();
                         for gk in 0u8..=255u8 {
                             let gk_old = base[old_t] as usize + gk as usize;
-                            if gk_old < check.len() && check[gk_old] == old_t as i32 {
-                                grandkids.push(gk);
+                            if gk_old < check.len() && check[gk_old] == old_t as i64 {
+                                let gk_new = base[new_t] as usize + gk as usize;
+                                Self::ensure_capacity(base, check, gk_new);
+                                base[gk_new] = base[gk_old];
+                                check[gk_new] = new_t as i64;
                             }
-                        }
-                        for &gk in &grandkids {
-                            let gk_old = base[old_t] as usize + gk as usize;
-                            let gk_new = base[new_t] as usize + gk as usize;
-                            Self::ensure_capacity(base, check, gk_new);
-                            base[gk_new] = base[gk_old];
-                            check[gk_new] = new_t as i32;
                         }
                     }
                 }
@@ -185,28 +183,10 @@ impl DoubleArrayTrie {
             }
             let term_t = base[s] as usize + slot as usize;
             Self::ensure_capacity(base, check, term_t);
-            base[term_t] = -(payload_id as i32 + 1);
-            check[term_t] = s as i32;
+            base[term_t] = -(payload_id as i64 + 1);
+            check[term_t] = s as i64;
         } else {
-            base[s] = -(payload_id as i32 + 1);
-        }
-    }
-
-    fn find_base(_base: &[i32], check: &[i32], children: &[u8]) -> i32 {
-        let mut b = 1i32;
-        loop {
-            let mut ok = true;
-            for &c in children {
-                let t = b as usize + c as usize;
-                if t < check.len() && check[t] != -1 {
-                    ok = false;
-                    break;
-                }
-            }
-            if ok {
-                return b;
-            }
-            b += 1;
+            base[s] = -(payload_id as i64 + 1);
         }
     }
 
@@ -220,7 +200,7 @@ impl DoubleArrayTrie {
                 return results;
             }
             let t = self.base[s] as usize + byte as usize;
-            if t >= self.check.len() || self.check[t] != s as i32 {
+            if t >= self.check.len() || self.check[t] != s as i64 {
                 return results;
             }
             s = t;
@@ -236,18 +216,16 @@ impl DoubleArrayTrie {
 
     pub fn serialize<W: std::io::Write>(&self, writer: &mut W, entries: &[DictEntry]) -> std::io::Result<()> {
         let num_entries = entries.len() as u32;
-        let trie_byte_size = (self.base.len() * 4 * 2) as u64; // base + check
+        let trie_byte_size = (self.base.len() * 8 * 2) as u64;
 
-        // HEADER (64 bytes)
         writer.write_all(b"IBUSICE")?;
-        writer.write_all(&1u32.to_le_bytes())?;       // version
+        writer.write_all(&1u32.to_le_bytes())?;
         writer.write_all(&num_entries.to_le_bytes())?;
-        writer.write_all(&64u64.to_le_bytes())?;       // trie_offset
-        writer.write_all(&(64 + trie_byte_size).to_le_bytes())?; // payload_offset
+        writer.write_all(&64u64.to_le_bytes())?;
+        writer.write_all(&(64 + trie_byte_size).to_le_bytes())?;
         let padding = [0u8; 33];
         writer.write_all(&padding)?;
 
-        // TRIE: base[] then check[]
         for &b in &self.base {
             writer.write_all(&b.to_le_bytes())?;
         }
@@ -255,35 +233,26 @@ impl DoubleArrayTrie {
             writer.write_all(&c.to_le_bytes())?;
         }
 
-        // PAYLOAD: offset table + entries
         let offset_table_size = (num_entries as usize) * 4;
-
-        // Build entries first to calculate offsets
         let mut payload_buf: Vec<u8> = Vec::new();
         let mut offsets: Vec<u32> = Vec::new();
-        let mut current_offset: u32 = offset_table_size as u32; // relative to entries_start
+        let mut current_offset: u32 = offset_table_size as u32;
 
         for entry in entries {
             offsets.push(current_offset);
             let text_bytes = entry.text.as_bytes();
             let text_len = text_bytes.len() as u16;
-            // text_len (2 bytes, LE)
             payload_buf.extend_from_slice(&text_len.to_le_bytes());
-            // text bytes (UTF-8)
             payload_buf.extend_from_slice(text_bytes);
-            // freq (4 bytes, LE)
             payload_buf.extend_from_slice(&entry.freq.to_le_bytes());
-            // word_len (1 byte)
             let word_len = entry.text.chars().count() as u8;
             payload_buf.push(word_len);
             current_offset += 2 + text_bytes.len() as u32 + 5;
         }
 
-        // Write offset table
         for &off in &offsets {
             writer.write_all(&off.to_le_bytes())?;
         }
-        // Write entries
         writer.write_all(&payload_buf)?;
 
         Ok(())
@@ -300,7 +269,7 @@ impl DoubleArrayTrie {
             let base_val = self.base[node];
             for c in 0u8..=255u8 {
                 let t = base_val as usize + c as usize;
-                if t < self.check.len() && self.check[t] == node as i32 {
+                if t < self.check.len() && self.check[t] == node as i64 {
                     self.collect_leaves(t, results);
                 }
             }
@@ -331,8 +300,8 @@ mod tests {
         let trie = DoubleArrayTrie::build(&entries);
 
         let ids = trie.lookup("zhong");
-        assert!(ids.contains(&0)); // "中"
-        assert!(ids.contains(&2)); // "种"
+        assert!(ids.contains(&0));
+        assert!(ids.contains(&2));
     }
 
     #[test]
@@ -365,7 +334,6 @@ mod tests {
         let mut buf = Vec::new();
         trie.serialize(&mut buf, &entries).unwrap();
 
-        // Verify magic
         assert_eq!(&buf[0..7], b"IBUSICE");
     }
 }
