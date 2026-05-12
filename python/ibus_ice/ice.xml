@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<component>
+  <name>org.freedesktop.IBus.Ice</name>
+  <description>Ice Chinese Input Method</description>
+  <exec>env PYTHONPATH=/usr/lib/ibus-ice/python /usr/bin/python3 -m ibus_ice.engine_main</exec>
+  <version>0.1.0</version>
+  <author>ibus-ice contributors</author>
+  <license>GPLv3</license>
+  <homepage>https://github.com/yshngg/ibus-ice</homepage>
+  <textdomain>ibus-ice</textdomain>
+  <engines>
+    <engine>
+      <name>ice</name>
+      <language>zh</language>
+      <license>GPLv3</license>
+      <author>ibus-ice contributors</author>
+      <layout>us</layout>
+      <longname>Ice</longname>
+      <description>Ice Chinese Input Method</description>
+      <rank>50</rank>
+    </engine>
+  </engines>
+</component>
