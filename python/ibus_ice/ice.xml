@@ -2,7 +2,7 @@
 <component>
   <name>org.freedesktop.IBus.Ice</name>
   <description>Ice Chinese Input Method</description>
-  <exec>env PYTHONPATH=/usr/lib/ibus-ice/python /usr/bin/python3 -m ibus_ice.engine_main</exec>
+  <exec>env PYTHONPATH=/usr/local/lib/ibus-ice/python /usr/bin/python3 -m ibus_ice.engine_main</exec>
   <version>0.1.0</version>
   <author>ibus-ice contributors</author>
   <license>GPLv3</license>
