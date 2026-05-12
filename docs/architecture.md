@@ -59,10 +59,13 @@ ibus-ice/
 |       +-- parser.rs         # rime-ice YAML parser
 |       +-- trie_builder.rs   # Double-Array Trie construction
 |
-+-- python/                   # IBus adapter (uv-managed)
++-- engine/                    # IBus engine adapter
+|   +-- ibus-engine-ice.in     # Shell wrapper script
 |   +-- ibus_ice/
-|       +-- engine.py         # IceIBusEngine (IBus.Engine subclass)
-|       +-- ffi.py            # ctypes bindings
+|       +-- engine.py          # IceIBusEngine (IBus.Engine subclass)
+|       +-- engine_main.py     # IMApp entry point
+|       +-- ffi.py             # ctypes bindings
+|       +-- ice.xml            # IBus component descriptor
 |
 +-- scripts/
 |   +-- build-dict.sh         # Dictionary compilation script

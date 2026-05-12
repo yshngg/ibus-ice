@@ -1,0 +1,5 @@
+#!/bin/sh
+# ibus-ice - Ice Chinese Input Method engine for IBus
+# Shell wrapper to launch the Python engine with correct PYTHONPATH
+
+exec /usr/bin/python3 -m ibus_ice.engine_main --ibus "$@"

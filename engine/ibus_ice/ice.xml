@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- ibus-ice component file -->
 <component>
   <name>org.freedesktop.IBus.Ice</name>
   <description>Ice Chinese Input Method</description>
-  <exec>env PYTHONPATH=/usr/local/lib/ibus-ice/python /usr/bin/python3 -m ibus_ice.engine_main</exec>
+  <exec>/usr/local/libexec/ibus-engine-ice --ibus</exec>
   <version>0.1.0</version>
   <author>ibus-ice contributors</author>
   <license>GPLv3</license>
