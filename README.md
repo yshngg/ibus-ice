@@ -29,8 +29,8 @@ See [docs/architecture.md](docs/architecture.md) for the full design.
 
 | Directory | Description |
 |-----------|-------------|
-| `core/` | Rust shared library (cdylib → `libibus_ice_core.so`) |
-| `dict-compiler/` | Build-time CLI to compile rime-ice YAML → binary Trie |
+| `core/` | Rust shared library (cdylib -> `libibus_ice_core.so`) |
+| `dict-compiler/` | Build-time CLI to compile rime-ice YAML -> binary Trie |
 | `python/` | Python IBus adapter (ctypes bindings + engine class) |
 | `scripts/` | Build and install scripts |
 
