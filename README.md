@@ -14,7 +14,8 @@ A Chinese input method engine for IBus, with a Rust-powered core and rime-ice di
 
 ```bash
 make build          # compile Rust + build dictionary
-sudo make install   # install .so + dict + Python adapter
+sudo make install   # install to /usr/local
+sudo make uninstall # remove installed files
 
 # Restart IBus:
 ibus-daemon -xrv

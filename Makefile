@@ -23,6 +23,13 @@ install: build
 	install -m 644 build/ice.dict $(DESTDIR)$(DATA_DIR)/ice.dict
 	@echo "Installed to $(DESTDIR)$(PREFIX)"
 
+uninstall:
+	rm -f $(DESTDIR)$(LIB_DIR)/libibus_ice_core.so
+	rm -f $(DESTDIR)$(DATA_DIR)/ice.dict
+	-rmdir $(DESTDIR)$(LIB_DIR) 2>/dev/null || true
+	-rmdir $(DESTDIR)$(DATA_DIR) 2>/dev/null || true
+	@echo "Uninstalled from $(DESTDIR)$(PREFIX)"
+
 clean:
 	cargo clean
 	rm -rf build
