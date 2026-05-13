@@ -1,5 +1,6 @@
 """TestClient, dataclasses, and custom assertion helpers."""
 
+import time
 from dataclasses import dataclass
 
 from trace import TraceEngine
@@ -159,6 +160,187 @@ class TestClient:
         self._candidates = []
         self._preedit = ""
         self._engine.reset()
+
+
+class IBusTestClient:
+    """Chainable E2E test client wrapping IBus.InputContext (black box).
+
+    Connects to an isolated ibus-daemon via D-Bus and sends real
+    IBus key events.  Requires IBus.init() to have been called first.
+    """
+
+    def __init__(self, dict_path: str, trace_engine: TraceEngine | None = None):
+        import gi
+        gi.require_version("IBus", "1.0")
+        from gi.repository import IBus, GLib
+
+        IBus.init()
+        self._bus = IBus.Bus()
+        self._ic = self._bus.create_input_context("IBusTestClient")
+        self._ic.set_capabilities(7)
+
+        self._committed = ""
+        self._preedit = ""
+        self._candidates: list[Candidate] = []
+        self._events: list[EngineEvent] = []
+        self._pinyin_buffer = ""
+        self._trace_engine = trace_engine
+
+        self._ic.connect("commit-text", self._on_commit_text)
+        self._ic.connect("update-preedit-text", self._on_update_preedit)
+        self._ic.connect("hide-preedit-text", self._on_hide_preedit)
+        self._ic.connect("update-lookup-table", self._on_update_lookup_table)
+        self._ic.connect("hide-lookup-table", self._on_hide_lookup_table)
+
+    # --- Input actions (chainable) ---
+
+    def type_pinyin(self, text: str) -> "IBusTestClient":
+        import gi
+        gi.require_version("IBus", "1.0")
+        from gi.repository import IBus
+        for ch in text:
+            self._pinyin_buffer += ch.lower()
+            self._ic.process_key_event(ord(ch.lower()), 0, 0)
+            self._flush()
+        return self
+
+    def press_space(self) -> "IBusTestClient":
+        import gi
+        from gi.repository import IBus
+        self._ic.process_key_event(IBus.KEY_space, 0, 0)
+        self._flush()
+        return self
+
+    def press_enter(self) -> "IBusTestClient":
+        import gi
+        from gi.repository import IBus
+        self._ic.process_key_event(IBus.KEY_Return, 0, 0)
+        self._flush()
+        return self
+
+    def press_escape(self) -> "IBusTestClient":
+        import gi
+        from gi.repository import IBus
+        self._ic.process_key_event(IBus.KEY_Escape, 0, 0)
+        self._flush()
+        self._pinyin_buffer = ""
+        return self
+
+    def press_backspace(self) -> "IBusTestClient":
+        import gi
+        from gi.repository import IBus
+        self._ic.process_key_event(IBus.KEY_BackSpace, 0, 0)
+        self._flush()
+        if self._pinyin_buffer:
+            self._pinyin_buffer = self._pinyin_buffer[:-1]
+        return self
+
+    def press_number(self, n: int) -> "IBusTestClient":
+        import gi
+        from gi.repository import IBus
+        if 1 <= n <= 9:
+            self._ic.process_key_event(IBus.KEY_1 + (n - 1), 0, 0)
+            self._flush()
+        return self
+
+    def press_page_up(self) -> "IBusTestClient":
+        import gi
+        from gi.repository import IBus
+        self._ic.process_key_event(IBus.KEY_Page_Up, 0, 0)
+        self._flush()
+        return self
+
+    def press_page_down(self) -> "IBusTestClient":
+        import gi
+        from gi.repository import IBus
+        self._ic.process_key_event(IBus.KEY_Page_Down, 0, 0)
+        self._flush()
+        return self
+
+    def press_key(self, keyval: int, modifiers: int = 0) -> "IBusTestClient":
+        self._ic.process_key_event(keyval, 0, modifiers)
+        self._flush()
+        return self
+
+    def press_apostrophe(self) -> "IBusTestClient":
+        import gi
+        from gi.repository import IBus
+        self._ic.process_key_event(IBus.KEY_apostrophe, 0, 0)
+        self._flush()
+        self._pinyin_buffer += "'"
+        return self
+
+    # --- Inspection ---
+
+    def get_candidates(self) -> list[Candidate]:
+        return list(self._candidates)
+
+    def get_preedit(self) -> str:
+        return self._preedit
+
+    def get_committed(self) -> str:
+        return self._committed
+
+    def get_aux_text(self) -> str:
+        return ""
+
+    def get_pinyin_buffer(self) -> str:
+        return self._pinyin_buffer
+
+    def events(self) -> list[EngineEvent]:
+        return list(self._events)
+
+    def clear_events(self) -> "IBusTestClient":
+        self._events.clear()
+        return self
+
+    # --- Tracing ---
+
+    def get_trace(self) -> dict | None:
+        if self._trace_engine and self._pinyin_buffer:
+            return self._trace_engine.debug_process(self._pinyin_buffer)
+        return None
+
+    def close(self):
+        pass
+
+    # --- Internal callbacks ---
+
+    def _flush(self):
+        import gi
+        from gi.repository import GLib
+        ctx = GLib.main_context_default()
+        for _ in range(10):
+            while ctx.pending():
+                ctx.iteration(False)
+            time.sleep(0.01)
+
+    def _on_commit_text(self, ic, text):
+        self._committed += text.text
+        self._events.append(EngineEvent(type="commit-text", text=text.text))
+
+    def _on_update_preedit(self, ic, text, cursor_pos, visible):
+        preedit_text = text.text if text else ""
+        if preedit_text:
+            self._preedit = preedit_text
+            self._pinyin_buffer = preedit_text
+        self._events.append(EngineEvent(type="update-preedit", text=self._preedit))
+
+    def _on_hide_preedit(self, ic):
+        self._preedit = ""
+
+    def _on_update_lookup_table(self, ic, table, visible):
+        cands = []
+        for c in table.get_candidates_in_current_page():
+            cands.append(Candidate(text=c.text))
+        for i, cand in enumerate(cands):
+            cand.label = str(i + 1)
+        self._candidates = cands
+        self._events.append(EngineEvent(type="update-lookup-table", candidates=list(cands)))
+
+    def _on_hide_lookup_table(self, ic):
+        self._candidates = []
+        self._events.append(EngineEvent(type="hide-lookup-table"))
 
 
 # --- Custom Assertion Helpers ---
