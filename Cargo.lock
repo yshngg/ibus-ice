@@ -3,9 +3,19 @@
 version = 4
 
 [[package]]
+name = "cedarwood"
+version = "0.4.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6d910bedd62c24733263d0bed247460853c9d22e8956bd4cd964302095e04e90"
+dependencies = [
+ "smallvec",
+]
+
+[[package]]
 name = "core"
 version = "0.1.0"
 dependencies = [
+ "cedarwood",
  "memmap2",
 ]
 
@@ -13,6 +23,7 @@ dependencies = [
 name = "dict-compiler"
 version = "0.1.0"
 dependencies = [
+ "cedarwood",
  "serde",
  "serde_yaml",
 ]
@@ -126,6 +137,12 @@ dependencies = [
  "serde",
  "unsafe-libyaml",
 ]
+
+[[package]]
+name = "smallvec"
+version = "1.15.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "67b1b7a3b5fe4f1376887184045fcf45c69e92af734b7aaddc05fb777b6fbd03"
 
 [[package]]
 name = "syn"
