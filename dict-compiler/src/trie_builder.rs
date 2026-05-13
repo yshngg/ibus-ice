@@ -39,25 +39,15 @@ impl DoubleArrayTrie {
         }
     }
 
-    fn find_base(base: &mut Vec<i64>, check: &mut Vec<i64>, children: &[u8], cursor: &mut i64) -> i64 {
-        let mut s = *cursor;
-        if s < 1 { s = 1; }
-        loop {
-            let mut all_free = true;
-            for &c in children {
-                let t = s as usize + c as usize;
-                Self::ensure_capacity(base, check, t);
-                if check[t] != -1 {
-                    all_free = false;
-                    break;
-                }
-            }
-            if all_free {
-                *cursor = s + 1;
-                return s;
-            }
-            s += 1;
-        }
+    fn find_base(base: &mut Vec<i64>, check: &mut Vec<i64>, children: &[u8], _cursor: &mut i64) -> i64 {
+        // Allocate at the end for O(1). Each call grows by max_c+1 entries,
+        // so total growth is bounded even for 913K entries.
+        let max_c = children.iter().copied().max().unwrap_or(0) as usize;
+        let start = check.len();
+        let new_len = start + max_c + 1;
+        base.resize(new_len, 0);
+        check.resize(new_len, -1);
+        start as i64
     }
 
     fn insert(base: &mut Vec<i64>, check: &mut Vec<i64>, key: &[u8], payload_id: usize, cursor: &mut i64) {
