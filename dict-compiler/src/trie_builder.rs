@@ -40,12 +40,23 @@ impl DoubleArrayTrie {
     }
 
     fn find_base(base: &mut Vec<i64>, check: &mut Vec<i64>, children: &[u8]) -> i64 {
-        // Always allocate at the end for O(1) performance
-        let max_c = children.iter().copied().max().unwrap_or(0) as usize;
-        let new_len = check.len() + max_c + 1;
-        base.resize(new_len, 0);
-        check.resize(new_len, -1);
-        check.len() as i64
+        // Search for a position where all children's transitions are free
+        let mut s: i64 = 1;
+        loop {
+            let mut all_free = true;
+            for &c in children {
+                let t = s as usize + c as usize;
+                Self::ensure_capacity(base, check, t);
+                if check[t] != -1 {
+                    all_free = false;
+                    break;
+                }
+            }
+            if all_free {
+                return s;
+            }
+            s += 1;
+        }
     }
 
     fn insert(base: &mut Vec<i64>, check: &mut Vec<i64>, key: &[u8], payload_id: usize) {
