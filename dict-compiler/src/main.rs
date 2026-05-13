@@ -1,5 +1,6 @@
 mod parser;
 mod trie_builder;
+mod perf;
 
 use parser::{DictEntry, Parser};
 use std::fs;
@@ -16,6 +17,9 @@ fn main() {
     let output_path = PathBuf::from(&args[1]);
     let mut all_entries: Vec<DictEntry> = Vec::new();
 
+    perf::init();
+    perf::phase("parse_start");
+
     for input_path in &args[2..] {
         let content = fs::read_to_string(input_path)
             .unwrap_or_else(|e| panic!("Failed to read {}: {}", input_path, e));
@@ -24,16 +28,23 @@ fn main() {
         all_entries.extend(entries);
     }
 
+    perf::phase("parse_end");
     println!("Parsed {} entries from {} files", all_entries.len(), args.len() - 2);
 
     // Build trie
+    perf::phase("build_start");
     let trie = DoubleArrayTrie::build(&all_entries);
+    perf::phase("build_end");
 
     // Serialize to output file
+    perf::phase("serialize_start");
     let mut out_file = fs::File::create(&output_path)
         .unwrap_or_else(|e| panic!("Failed to create {}: {}", output_path.display(), e));
     trie.serialize(&mut out_file, &all_entries)
         .unwrap_or_else(|e| panic!("Failed to write dict: {}", e));
+    perf::phase("serialize_end");
+
+    perf::finalize(trie.len(), all_entries.len());
 
     println!("Written dict to {} ({} entries, {} trie nodes)",
         output_path.display(), all_entries.len(), trie.len());

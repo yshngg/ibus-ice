@@ -24,6 +24,18 @@ test-e2e:
 	cargo build --release -p dict-compiler
 	python -m pytest tests/ -v
 
+profile-dict:
+	cargo build --release -p dict-compiler
+	DICT_PROFILE=1 ./target/release/dict-compiler build/test_profile.dict \
+		rime-ice/cn_dicts/8105.dict.yaml \
+		rime-ice/cn_dicts/base.dict.yaml \
+		rime-ice/cn_dicts/ext.dict.yaml \
+		rime-ice/cn_dicts/others.dict.yaml \
+		rime-ice/en_dicts/en.dict.yaml \
+		rime-ice/en_dicts/en_ext.dict.yaml \
+		2>build/profile.jsonl 1>&2
+	python scripts/profile-dict.py build/profile.jsonl build/profile
+
 install:
 	install -d $(DESTDIR)$(LIBDIR)
 	install -d $(DESTDIR)$(DATADIR)

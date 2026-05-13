@@ -1,5 +1,7 @@
 use crate::DictEntry;
 
+use crate::perf;
+
 pub struct DoubleArrayTrie {
     pub base: Vec<i64>,
     pub check: Vec<i64>,
@@ -24,7 +26,11 @@ impl DoubleArrayTrie {
         let mut base = vec![0i64; INITIAL_SIZE];
         let mut check = vec![-1i64; INITIAL_SIZE];
 
-        for (key, payload_id) in &keys {
+        for (i, (key, payload_id)) in keys.iter().enumerate() {
+            if perf::enabled() && (i % 1000 == 0 || i + 1 == keys.len()) {
+                perf::progress(i, keys.len(), base.len());
+                perf::memory_sample();
+            }
             Self::insert(&mut base, &mut check, key, *payload_id as usize, &mut 1i64);
         }
 
@@ -33,21 +39,35 @@ impl DoubleArrayTrie {
 
     fn ensure_capacity(base: &mut Vec<i64>, check: &mut Vec<i64>, idx: usize) {
         if idx >= base.len() {
-            let new_size = (idx + 256).next_power_of_two();
-            base.resize(new_size, 0);
-            check.resize(new_size, -1);
+            base.resize(idx + 256, 0);
+            check.resize(idx + 256, -1);
         }
     }
 
-    fn find_base(base: &mut Vec<i64>, check: &mut Vec<i64>, children: &[u8], _cursor: &mut i64) -> i64 {
-        // Allocate at the end for O(1). Each call grows by max_c+1 entries,
-        // so total growth is bounded even for 913K entries.
-        let max_c = children.iter().copied().max().unwrap_or(0) as usize;
-        let start = check.len();
-        let new_len = start + max_c + 1;
-        base.resize(new_len, 0);
-        check.resize(new_len, -1);
-        start as i64
+    fn find_base(base: &mut Vec<i64>, check: &mut Vec<i64>, children: &[u8], cursor: &mut i64) -> i64 {
+        let mut s = *cursor;
+        if s < 1 { s = 1; }
+        let mut attempts: u64 = 0;
+        loop {
+            attempts += 1;
+            let mut all_free = true;
+            for &c in children {
+                let t = s as usize + c as usize;
+                Self::ensure_capacity(base, check, t);
+                if check[t] != -1 {
+                    all_free = false;
+                    break;
+                }
+            }
+            if all_free {
+                *cursor = s + 1;
+                if perf::enabled() {
+                    perf::find_base(*cursor, base.len(), attempts, true);
+                }
+                return s;
+            }
+            s += 1;
+        }
     }
 
     fn insert(base: &mut Vec<i64>, check: &mut Vec<i64>, key: &[u8], payload_id: usize, cursor: &mut i64) {
@@ -105,17 +125,6 @@ impl DoubleArrayTrie {
                     }
                     let old_t = old_base as usize + c as usize;
                     let new_t = new_base as usize + c as usize;
-                    Self::ensure_capacity(base, check, new_t);
-                    base[new_t] = base[old_t];
-                    check[new_t] = s as i64;
-                }
-
-                for &c in &children {
-                    if c == byte {
-                        continue;
-                    }
-                    let old_t = old_base as usize + c as usize;
-                    let new_t = new_base as usize + c as usize;
                     if base[old_t] > 0 {
                         for gk in 0u8..=255u8 {
                             let gk_old = base[old_t] as usize + gk as usize;
@@ -124,9 +133,26 @@ impl DoubleArrayTrie {
                                 Self::ensure_capacity(base, check, gk_new);
                                 base[gk_new] = base[gk_old];
                                 check[gk_new] = new_t as i64;
+                                // Mark old grandchild position as free
+                                check[gk_old] = -1;
+                                base[gk_old] = 0;
                             }
                         }
                     }
+                }
+
+                for &c in &children {
+                    if c == byte {
+                        continue;
+                    }
+                    let old_t = old_base as usize + c as usize;
+                    let new_t = new_base as usize + c as usize;
+                    Self::ensure_capacity(base, check, new_t);
+                    base[new_t] = base[old_t];
+                    check[new_t] = s as i64;
+                    // Mark old child position as free (after grandchildren moved)
+                    check[old_t] = -1;
+                    base[old_t] = 0;
                 }
 
                 base[s] = new_base;
@@ -166,9 +192,6 @@ impl DoubleArrayTrie {
                 for &c in &all_children {
                     let old_t = old_base as usize + c as usize;
                     let new_t = new_base as usize + c as usize;
-                    Self::ensure_capacity(base, check, new_t);
-                    base[new_t] = base[old_t];
-                    check[new_t] = s as i64;
                     if base[old_t] > 0 {
                         for gk in 0u8..=255u8 {
                             let gk_old = base[old_t] as usize + gk as usize;
@@ -177,9 +200,20 @@ impl DoubleArrayTrie {
                                 Self::ensure_capacity(base, check, gk_new);
                                 base[gk_new] = base[gk_old];
                                 check[gk_new] = new_t as i64;
+                                check[gk_old] = -1;
+                                base[gk_old] = 0;
                             }
                         }
                     }
+                }
+                for &c in &all_children {
+                    let old_t = old_base as usize + c as usize;
+                    let new_t = new_base as usize + c as usize;
+                    Self::ensure_capacity(base, check, new_t);
+                    base[new_t] = base[old_t];
+                    check[new_t] = s as i64;
+                    check[old_t] = -1;
+                    base[old_t] = 0;
                 }
                 base[s] = new_base;
             }
