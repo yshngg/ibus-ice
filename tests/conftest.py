@@ -10,6 +10,8 @@ import xml.etree.ElementTree as ET
 
 import pytest
 
+sys.path.insert(0, os.path.dirname(__file__))
+
 from test_helpers import TestClient
 from trace import TraceEngine
 
@@ -110,13 +112,37 @@ def client(ibus_session, ice_dict):
     trace_engine.close()
 
 
+TEST_DICT_YAML = """\
+---
+...
+中国	zhong guo	10000
+美国	mei guo	8000
+中国话	zhong guo hua	5000
+中国人	zhong guo ren	6000
+中国画	zhong guo hua	4000
+我	wo	10000
+你	ni	9000
+好	hao	5000
+你好	ni hao	7000
+西安	xi an	6000
+人	ren	8000
+和平	he ping	1000
+苹果	ping guo	3000
+"""
+
+
 @pytest.fixture(scope="session")
 def ice_dict():
-    """Build the full production dictionary once for the test session."""
-    print("\nBuilding full dictionary...")
-    subprocess.run(["make", "build-dict"], cwd=PROJECT_DIR, check=True)
-    path = os.path.join(PROJECT_DIR, "build", "ice.dict")
-    assert os.path.exists(path), f"ice.dict not found at {path}"
+    """Build a test dictionary using dict-compiler."""
+    path = os.path.join(PROJECT_DIR, "build", "test_ice.dict")
+    if not os.path.exists(path):
+        yaml_path = os.path.join(PROJECT_DIR, "build", "test_dict.yaml")
+        os.makedirs(os.path.dirname(yaml_path), exist_ok=True)
+        with open(yaml_path, "w") as f:
+            f.write(TEST_DICT_YAML)
+        dict_compiler = os.path.join(PROJECT_DIR, "target", "release", "dict-compiler")
+        subprocess.run([dict_compiler, path, yaml_path], cwd=PROJECT_DIR, check=True)
+    assert os.path.exists(path), f"Test dict not found at {path}"
     return path
 
 
@@ -186,9 +212,9 @@ def ibus_session(tmp_path, ice_dict, ice_engine_so, dict_dir):
         "HOME": home_dir,
     }
 
-    # Start ibus-daemon (--nodaemon keeps it as a child process)
+    # Start ibus-daemon in foreground (no --daemonize)
     ibus_proc = subprocess.Popen(
-        ["ibus-daemon", "--nodaemon", "--replace", "--verbose"],
+        ["ibus-daemon", "--replace", "--verbose"],
         env=env,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,

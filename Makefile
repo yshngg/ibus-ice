@@ -20,8 +20,8 @@ test:
 	cargo test -p dict-compiler
 
 test-e2e:
-	$(MAKE) build
-	$(MAKE) build-dict
+	cargo build --release -p core
+	cargo build --release -p dict-compiler
 	python -m pytest tests/ -v
 
 install:
