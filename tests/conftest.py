@@ -10,6 +10,9 @@ import xml.etree.ElementTree as ET
 
 import pytest
 
+from test_helpers import TestClient
+from trace import TraceEngine
+
 PROJECT_DIR = os.path.realpath(os.path.join(os.path.dirname(__file__), ".."))
 ENGINE_DIR = os.path.join(PROJECT_DIR, "engine")
 BASE_COMPONENT_DIR = "/usr/share/ibus/component"
@@ -94,6 +97,17 @@ def _kill_procs(*procs):
                 p.kill()
             except Exception:
                 pass
+
+
+@pytest.fixture
+def client(ibus_session, ice_dict):
+    """Create a TestClient connected to the isolated IBus session."""
+    bus_address = ibus_session["bus_address"]
+    os.environ["DBUS_SESSION_BUS_ADDRESS"] = bus_address
+    trace_engine = TraceEngine(ice_dict)
+    tc = TestClient(bus_address, trace_engine)
+    yield tc
+    trace_engine.close()
 
 
 @pytest.fixture(scope="session")
