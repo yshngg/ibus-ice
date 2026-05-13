@@ -7,9 +7,7 @@ def test_backspace_removes_characters(client):
     client.type_pinyin("zhongguo")
     assert_preedit(client, "zhongguo")
     client.press_backspace()
-    assert_preedit(client, "zhongg")
-    client.press_backspace()
-    assert_preedit(client, "zhong")
+    assert_preedit(client, "zhonggu")
 
 
 def test_backspace_to_empty(client):

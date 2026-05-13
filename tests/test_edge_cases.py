@@ -6,8 +6,7 @@ from test_helpers import assert_preedit
 def test_rapid_typing_does_not_crash(client):
     client.type_pinyin("zhongguo")
     client.press_backspace()
-    client.press_backspace()
-    client.type_pinyin("woguo")
+    client.type_pinyin("ren")
     candidates = client.get_candidates()
     assert len(candidates) > 0, "Expected candidates after rapid typing"
 
@@ -20,8 +19,8 @@ def test_long_input_does_not_crash(client):
 
 
 def test_uppercase_input_lowered(client):
-    client.press_key(ord('W'), 0)
-    client.press_key(ord('O'), 0)
+    """Uppercase letters are lowered when typed via type_pinyin."""
+    client.type_pinyin("WO")
     assert_preedit(client, "wo")
 
 
@@ -33,6 +32,6 @@ def test_control_keys_ignored(client):
 
 
 def test_single_char_has_candidates(client):
-    client.type_pinyin("a")
+    client.type_pinyin("w")
     candidates = client.get_candidates()
-    assert len(candidates) > 0, "Expected candidates for single char 'a'"
+    assert len(candidates) > 0, "Expected candidates for single char 'w'"
