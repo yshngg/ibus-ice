@@ -80,9 +80,10 @@ def dict_dir(ice_dict):
 
 
 def _make_component_xml(component_dir, dict_dir, home, engine_wrapper):
-    """Write ice.xml into component_dir for ibus-daemon discovery.
+    """Write ice.xml for ibus-daemon discovery.
 
-    engine_wrapper is a shell script path that sets env vars and launches the engine.
+    Uses inline engine definitions (no exec attribute on engines).
+    The component's exec child tells ibus-daemon how to launch the engine process.
     """
     root = ET.Element("component")
     ET.SubElement(root, "name").text = "org.freedesktop.IBus.Ice"
