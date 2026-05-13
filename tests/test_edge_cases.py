@@ -4,11 +4,10 @@ from test_helpers import assert_preedit
 
 
 def test_rapid_typing_does_not_crash(client):
-    client.type_pinyin("zhongguo")
-    client.press_backspace()
-    client.type_pinyin("ren")
-    candidates = client.get_candidates()
-    assert len(candidates) > 0, "Expected candidates after rapid typing"
+    client.type_pinyin("zhongguo").press_backspace()
+    assert_preedit(client, "zhonggu")
+    client.type_pinyin("ren").press_backspace()
+    assert_preedit(client, "zhonggure")
 
 
 def test_long_input_does_not_crash(client):
