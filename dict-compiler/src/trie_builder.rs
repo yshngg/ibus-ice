@@ -192,6 +192,7 @@ impl DoubleArrayTrie {
         }
     }
 
+    #[allow(dead_code)]
     pub fn lookup(&self, key: &str) -> Vec<usize> {
         let mut results = Vec::new();
         let bytes = key.as_bytes();
@@ -235,7 +236,7 @@ impl DoubleArrayTrie {
             writer.write_all(&c.to_le_bytes())?;
         }
 
-        let offset_table_size = (num_entries as usize) * 4;
+        let _offset_table_size = (num_entries as usize) * 4;
         let mut payload_buf: Vec<u8> = Vec::new();
         let mut offsets: Vec<u32> = Vec::new();
         let mut current_offset: u32 = 0;
@@ -260,6 +261,7 @@ impl DoubleArrayTrie {
         Ok(())
     }
 
+    #[allow(dead_code)]
     fn collect_leaves(&self, node: usize, results: &mut Vec<usize>) {
         if self.base[node] <= 0 {
             let payload_id = (-self.base[node] - 1) as usize;
