@@ -28,7 +28,7 @@ class TestClient:
     def __init__(self, bus_address: str, trace_engine: TraceEngine | None = None):
         self._bus = IBus.Bus()
         self._ic_path = self._bus.create_input_context("TestClient")
-        self._ic = IBus.InputContext(self._bus, self._ic_path, True)
+        self._ic = IBus.InputContext.new(self._ic_path, self._bus.get_connection())
         self._ic.set_capabilities(7)
 
         self._committed = ""
