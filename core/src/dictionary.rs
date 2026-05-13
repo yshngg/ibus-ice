@@ -1,19 +1,6 @@
-use memmap2::Mmap;
+use cedarwood::Cedar;
 use std::fs;
-
-pub struct Dictionary {
-    _mmap: Mmap,
-    base: *const i64,
-    check: *const i64,
-    trie_size: usize,
-    #[allow(dead_code)]
-    num_entries: u32,
-    payload_offsets: *const u32,
-    payload_data: *const u8,
-}
-
-unsafe impl Send for Dictionary {}
-unsafe impl Sync for Dictionary {}
+use std::io::Read;
 
 #[derive(Debug, Clone)]
 pub struct DictEntry {
@@ -22,104 +9,107 @@ pub struct DictEntry {
     pub word_len: u8,
 }
 
+pub struct Dictionary {
+    cedar: Cedar,
+    texts: Vec<String>,
+    freqs: Vec<u32>,
+    word_lens: Vec<u8>,
+}
+
 impl Dictionary {
     pub fn open(path: &str) -> Result<Self, String> {
-        let file = fs::File::open(path).map_err(|e| format!("open: {}", e))?;
-        let mmap = unsafe { Mmap::map(&file).map_err(|e| format!("mmap: {}", e))? };
+        let mut file = fs::File::open(path).map_err(|e| format!("open: {}", e))?;
 
-        if mmap.len() < 64 {
-            return Err("dict file too small".into());
-        }
-        if &mmap[0..7] != b"IBUSICE" {
+        // Magic
+        let mut magic = [0u8; 8];
+        file.read_exact(&mut magic).map_err(|e| format!("read magic: {}", e))?;
+        if &magic != b"IBUSIC03" {
             return Err("invalid magic".into());
         }
 
-        let version = u32::from_le_bytes([mmap[7], mmap[8], mmap[9], mmap[10]]);
-        if version != 1 {
-            return Err(format!("unsupported version: {}", version));
+        // Num entries
+        let mut num_buf = [0u8; 4];
+        file.read_exact(&mut num_buf).map_err(|e| format!("read num entries: {}", e))?;
+        let num_entries = u32::from_le_bytes(num_buf) as usize;
+
+        // Read entries, building key-values for cedar
+        let mut keys: Vec<(String, i32)> = Vec::with_capacity(num_entries);
+        let mut texts: Vec<String> = Vec::with_capacity(num_entries);
+        let mut freqs: Vec<u32> = Vec::with_capacity(num_entries);
+        let mut word_lens: Vec<u8> = Vec::with_capacity(num_entries);
+
+        let mut len_buf = [0u8; 2];
+        for i in 0..num_entries {
+            // Pinyin
+            file.read_exact(&mut len_buf).map_err(|e| format!("read pinyin len: {}", e))?;
+            let pinyin_len = u16::from_le_bytes(len_buf) as usize;
+            let mut pinyin_bytes = vec![0u8; pinyin_len];
+            file.read_exact(&mut pinyin_bytes).map_err(|e| format!("read pinyin: {}", e))?;
+            let pinyin = String::from_utf8(pinyin_bytes).map_err(|e| format!("utf8: {}", e))?;
+
+            // Append separator for unique keys (matching dict-compiler: \x01 + index)
+            let key = format!("{}\x01{}", pinyin, i);
+
+            // Text
+            file.read_exact(&mut len_buf).map_err(|e| format!("read text len: {}", e))?;
+            let text_len = u16::from_le_bytes(len_buf) as usize;
+            let mut text_bytes = vec![0u8; text_len];
+            file.read_exact(&mut text_bytes).map_err(|e| format!("read text: {}", e))?;
+            let text = String::from_utf8(text_bytes).map_err(|e| format!("utf8: {}", e))?;
+
+            // Freq
+            let mut freq_buf = [0u8; 4];
+            file.read_exact(&mut freq_buf).map_err(|e| format!("read freq: {}", e))?;
+            let freq = u32::from_le_bytes(freq_buf);
+
+            // Word len
+            let mut wl_buf = [0u8; 1];
+            file.read_exact(&mut wl_buf).map_err(|e| format!("read word len: {}", e))?;
+
+            keys.push((key, i as i32));
+            texts.push(text);
+            freqs.push(freq);
+            word_lens.push(wl_buf[0]);
         }
 
-        let num_entries = u32::from_le_bytes([mmap[11], mmap[12], mmap[13], mmap[14]]);
-        let trie_offset = u64::from_le_bytes(mmap[15..23].try_into().unwrap()) as usize;
-        let payload_offset = u64::from_le_bytes(mmap[23..31].try_into().unwrap()) as usize;
+        // Build cedar trie
+        let key_slices: Vec<(&str, i32)> = keys.iter().map(|(k, v)| (k.as_str(), *v)).collect();
+        let mut cedar = Cedar::new();
+        cedar.build(&key_slices);
 
-        let trie_size = (payload_offset - trie_offset) / 16; // base + check, each 8 bytes
-
-        let base = unsafe { mmap.as_ptr().add(trie_offset) as *const i64 };
-        let check = unsafe { mmap.as_ptr().add(trie_offset + trie_size * 8) as *const i64 };
-        let payload_offsets = unsafe { mmap.as_ptr().add(payload_offset) as *const u32 };
-        let payload_data =
-            unsafe { mmap.as_ptr().add(payload_offset + (num_entries as usize * 4)) };
-
-        Ok(Dictionary {
-            _mmap: mmap,
-            base,
-            check,
-            trie_size,
-            num_entries,
-            payload_offsets,
-            payload_data,
-        })
+        Ok(Dictionary { cedar, texts, freqs, word_lens })
     }
 
     pub fn lookup(&self, key: &str) -> Vec<DictEntry> {
         let mut results = Vec::new();
-        let bytes = key.as_bytes();
-        let mut s: usize = 0;
 
-        for &byte in bytes.iter() {
-            let base_s = unsafe { *self.base.add(s) as usize };
-            let t = base_s + byte as usize;
-            if t >= self.trie_size || unsafe { *self.check.add(t) as usize } != s {
-                return results;
+        // cedarwood's common_prefix_predict returns all entries whose key
+        // starts with `key`.  Since our keys are "pinyin\x00_index", this
+        // correctly returns all entries with the given pinyin prefix.
+        if let Some(matches) = self.cedar.common_prefix_predict(key) {
+            for (value, _len) in &matches {
+                let idx = *value as usize;
+                if idx < self.texts.len() {
+                    results.push(DictEntry {
+                        text: self.texts[idx].clone(),
+                        freq: self.freqs[idx],
+                        word_len: self.word_lens[idx],
+                    });
+                }
             }
-            s = t;
-        }
-
-        let mut ids = Vec::new();
-        self.collect_leaves(s, &mut ids);
-
-        for id in ids {
-            let offset = unsafe { std::ptr::read_unaligned(self.payload_offsets.add(id)) as usize };
-            let ptr = unsafe { self.payload_data.add(offset) };
-            let text_len = unsafe { std::ptr::read_unaligned(ptr as *const u16) } as usize;
-            let text_bytes = unsafe { std::slice::from_raw_parts(ptr.add(2), text_len) };
-            let text = String::from_utf8_lossy(text_bytes).into_owned();
-            let freq = unsafe { std::ptr::read_unaligned(ptr.add(2 + text_len) as *const u32) };
-            let word_len = unsafe { *ptr.add(2 + text_len + 4) };
-
-            results.push(DictEntry { text, freq, word_len });
         }
 
         results
     }
-
-    fn collect_leaves(&self, node: usize, ids: &mut Vec<usize>) {
-        let base_val = unsafe { *self.base.add(node) };
-        if base_val <= 0 {
-            let id = (-base_val - 1) as usize;
-            if !ids.contains(&id) {
-                ids.push(id);
-            }
-            return;
-        }
-        for c in 0u8..=255u8 {
-            let t = base_val as usize + c as usize;
-            if t < self.trie_size && unsafe { *self.check.add(t) as usize } == node {
-                self.collect_leaves(t, ids);
-            }
-        }
-    }
 }
+
+// =============================================================================
+// Tests
+// =============================================================================
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[allow(dead_code)]
-    fn dict_path() -> String {
-        std::env::var("TEST_DICT").unwrap_or_else(|_| "/tmp/test.dict".into())
-    }
 
     #[test]
     fn test_open_invalid_file() {

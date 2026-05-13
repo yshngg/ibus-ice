@@ -32,9 +32,14 @@ pub extern "C" fn ice_engine_new(
     let dict_path = unsafe { CStr::from_ptr(dict_path) }.to_string_lossy().into_owned();
     let user_dict_path = unsafe { CStr::from_ptr(user_dict_path) }.to_string_lossy().into_owned();
 
+    eprintln!("ibus-ice: loading dict={} user_dict={}", dict_path, user_dict_path);
+
     match IceEngine::new(&dict_path, &user_dict_path) {
         Ok(engine) => Box::into_raw(Box::new(IceEngineHandle { engine })),
-        Err(_) => std::ptr::null_mut(),
+        Err(e) => {
+            eprintln!("ibus-ice: failed to create engine: {}", e);
+            std::ptr::null_mut()
+        }
     }
 }
 

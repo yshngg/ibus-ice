@@ -5,7 +5,7 @@ mod perf;
 use parser::{DictEntry, Parser};
 use std::fs;
 use std::path::PathBuf;
-use trie_builder::DoubleArrayTrie;
+use trie_builder::{build_trie, serialize_trie};
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
@@ -33,19 +33,19 @@ fn main() {
 
     // Build trie
     perf::phase("build_start");
-    let trie = DoubleArrayTrie::build(&all_entries);
+    let trie = build_trie(&all_entries);
     perf::phase("build_end");
 
     // Serialize to output file
     perf::phase("serialize_start");
     let mut out_file = fs::File::create(&output_path)
         .unwrap_or_else(|e| panic!("Failed to create {}: {}", output_path.display(), e));
-    trie.serialize(&mut out_file, &all_entries)
+    serialize_trie(&trie, &mut out_file, &all_entries)
         .unwrap_or_else(|e| panic!("Failed to write dict: {}", e));
     perf::phase("serialize_end");
 
-    perf::finalize(trie.len(), all_entries.len());
+    perf::finalize(0, all_entries.len());
 
-    println!("Written dict to {} ({} entries, {} trie nodes)",
-        output_path.display(), all_entries.len(), trie.len());
+    println!("Written dict to {} ({} entries)",
+        output_path.display(), all_entries.len());
 }

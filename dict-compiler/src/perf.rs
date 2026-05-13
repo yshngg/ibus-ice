@@ -40,12 +40,6 @@ pub fn progress(inserted: usize, total: usize, base_len: usize) {
         inserted, total, base_len));
 }
 
-pub fn find_base(cursor: i64, base_len: usize, attempts: u64, success: bool) {
-    if !enabled() { return; }
-    emit("find_base", &format!("\"cursor\":{},\"base_len\":{},\"attempts\":{},\"success\":{}",
-        cursor, base_len, attempts, success));
-}
-
 pub fn memory_rss_mb() -> Option<u64> {
     // Read /proc/self/statm: resident set size (page count)
     std::fs::read_to_string("/proc/self/statm")
