@@ -79,18 +79,15 @@ def dict_dir(ice_dict):
 # =============================================================================
 
 
-def _make_component_xml(component_dir, dict_dir, home):
-    """Write ice.xml into component_dir for ibus-daemon discovery."""
-    engine_py = os.path.join(ENGINE_DIR, "main.py")
-    exec_str = (
-        f"/usr/bin/env IBUS_ICE_DATA_DIR={dict_dir} HOME={home} "
-        f"/usr/bin/python3 {engine_py} --ibus"
-    )
+def _make_component_xml(component_dir, dict_dir, home, engine_wrapper):
+    """Write ice.xml into component_dir for ibus-daemon discovery.
 
+    engine_wrapper is a shell script path that sets env vars and launches the engine.
+    """
     root = ET.Element("component")
     ET.SubElement(root, "name").text = "org.freedesktop.IBus.Ice"
     ET.SubElement(root, "description").text = "Ice Input Method (Test)"
-    ET.SubElement(root, "exec").text = exec_str
+    ET.SubElement(root, "exec").text = engine_wrapper
     ET.SubElement(root, "version").text = "0.1.0"
     ET.SubElement(root, "author").text = "ibus-ice test"
     ET.SubElement(root, "license").text = "GPLv3"
@@ -130,7 +127,19 @@ def ibus_daemon(tmp_path, ice_dict, dict_dir):
     os.makedirs(os.path.join(home_dir, ".local", "share", "ibus-ice"), exist_ok=True)
 
     component_dir = os.path.join(tmp_path, "ibus-component")
-    _make_component_xml(component_dir, dict_dir, home_dir)
+    engine_wrapper = os.path.join(tmp_path, "ibus-engine-ice")
+    engine_py = os.path.join(ENGINE_DIR, "main.py")
+    wrapper_content = f"""#!/bin/sh
+IBUS_ICE_DATA_DIR={dict_dir}
+HOME={home_dir}
+export IBUS_ICE_DATA_DIR HOME
+exec /usr/bin/python3 {engine_py} --ibus
+"""
+    with open(engine_wrapper, "w") as f:
+        f.write(wrapper_content)
+    os.chmod(engine_wrapper, 0o755)
+
+    _make_component_xml(component_dir, dict_dir, home_dir, engine_wrapper)
 
     # File for dbus-run-session child to write bus address into
     addr_file = os.path.join(tmp_path, "bus-address")
