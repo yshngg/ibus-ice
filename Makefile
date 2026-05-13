@@ -19,6 +19,11 @@ test:
 	cargo test -p core
 	cargo test -p dict-compiler
 
+test-e2e:
+	$(MAKE) build
+	$(MAKE) build-dict
+	python -m pytest tests/ -v
+
 install:
 	install -d $(DESTDIR)$(LIBDIR)
 	install -d $(DESTDIR)$(DATADIR)
