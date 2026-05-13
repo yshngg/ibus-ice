@@ -115,7 +115,26 @@ def print_help(v=0):
     print("-h, --help      show this message")
     print("-d, --daemonize daemonize process")
     print("-t, --test      terminal CLI test mode")
+    print("-x, --xml       output engine XML description")
     sys.exit(v)
+
+
+def print_engine_xml():
+    """Print engine description XML for ibus-daemon discovery."""
+    print("""<?xml version='1.0' encoding='utf-8'?>
+<engines>
+  <engine>
+    <name>ice</name>
+    <language>zh</language>
+    <license>GPLv3</license>
+    <author>ibus-ice contributors</author>
+    <layout>us</layout>
+    <longname>Ice</longname>
+    <description>Ice Chinese Input Method</description>
+    <rank>50</rank>
+  </engine>
+</engines>""")
+    sys.exit(0)
 
 
 def main():
@@ -127,9 +146,10 @@ def main():
     exec_by_ibus = False
     daemonize = False
     test_mode = False
+    xml_mode = False
 
-    shortopt = "ihdt"
-    longopt = ["ibus", "help", "daemonize", "test"]
+    shortopt = "ihdtx"
+    longopt = ["ibus", "help", "daemonize", "test", "xml"]
 
     try:
         opts, args = getopt.getopt(sys.argv[1:], shortopt, longopt)
@@ -145,6 +165,11 @@ def main():
             exec_by_ibus = True
         elif o in ("-t", "--test"):
             test_mode = True
+        elif o in ("-x", "--xml"):
+            xml_mode = True
+
+    if xml_mode:
+        print_engine_xml()
 
     if daemonize:
         if os.fork():
