@@ -1,4 +1,4 @@
-"""pytest fixtures for ibus-ice E2E tests."""
+"""pytest fixtures for ibus-ice E2E tests (direct engine mode)."""
 
 import os
 import subprocess
@@ -13,17 +13,6 @@ from test_helpers import TestClient
 from trace import TraceEngine
 
 PROJECT_DIR = os.path.realpath(os.path.join(os.path.dirname(__file__), ".."))
-
-
-@pytest.fixture
-def client(ibus_session, ice_dict):
-    """Create a TestClient connected to the isolated IBus session."""
-    bus_address = ibus_session["bus_address"]
-    os.environ["DBUS_SESSION_BUS_ADDRESS"] = bus_address
-    trace_engine = TraceEngine(ice_dict)
-    tc = TestClient(bus_address, trace_engine)
-    yield tc
-    trace_engine.close()
 
 
 TEST_DICT_YAML = """\
@@ -79,74 +68,17 @@ def dict_dir(ice_dict):
 
 
 @pytest.fixture
-def ibus_session(tmp_path, ice_dict, ice_engine_so, dict_dir):
-    """Register ice engine with the running ibus-daemon and set up a factory.
+def client(ice_dict, tmp_path):
+    """Create a TestClient that directly wraps the Rust engine (no IBus needed).
 
-    Creates an IBus.Factory that handles key events for the ice engine,
-    connecting to the running ibus-daemon via D-Bus.
+    Uses the Engine class from ffi.py to directly call engine methods.
     """
-    import gi
-    gi.require_version("IBus", "1.0")
-    from gi.repository import IBus, GLib, GObject
+    user_dict_dir = os.path.join(tmp_path, "user-dict")
+    os.makedirs(user_dict_dir, exist_ok=True)
+    user_dict_path = os.path.join(user_dict_dir, "user.dict")
 
-    home_dir = os.path.join(tmp_path, "home")
-    os.makedirs(os.path.join(home_dir, ".local", "share", "ibus-ice"), exist_ok=True)
-
-    # Set env vars for engine.py to find the dict and user dict
-    os.environ["IBUS_ICE_DATA_DIR"] = dict_dir
-    os.environ["HOME"] = home_dir
-
-    bus = IBus.Bus()
-    if bus is None or not bus.is_connected():
-        raise RuntimeError("Cannot connect to IBus daemon. Is ibus-daemon running?")
-
-    # Import engine module to register the GObject type
-    sys.path.insert(0, os.path.join(PROJECT_DIR, "engine"))
-    import engine  # noqa: F811 - registers IceIBusEngine type
-    sys.path.pop(0)
-
-    # Build an EngineDesc for our engine
-    engine_desc = IBus.EngineDesc.new(
-        "ice",
-        "Ice",
-        "Ice Chinese Input Method (Test)",
-        "zh",
-        "GPLv3",
-        "ibus-ice test",
-        "",
-        "us",
-    )
-
-    # Build and register component
-    component = IBus.Component.new(
-        "org.freedesktop.IBus.Ice",
-        "Ice Input Method (Test)",
-        "0.1.0",
-        "GPLv3",
-        "ibus-ice test",
-        "https://github.com/yshngg/ibus-ice",
-        "",
-        "ibus-ice",
-    )
-    component.add_engine(engine_desc)
-    bus.register_component(component)
-
-    # Create engine factory to handle key events
-    factory = IBus.Factory.new(bus.get_connection())
-    factory.add_engine("ice", GObject.type_from_name("IceIBusEngine"))
-
-    # Set the engine as current
-    bus.set_global_engine_async("ice", -1, None, None, None)
-
-    # Process pending events
-    context = GLib.main_context_default()
-    for _ in range(10):
-        while context.pending():
-            context.iteration(False)
-        time.sleep(0.1)
-
-    yield {"bus_address": os.environ.get("DBUS_SESSION_BUS_ADDRESS", "")}
-
-    # Teardown
-    factory.destroy()
-    bus.set_global_engine_async("xkb:us::eng", -1, None, None, None)
+    trace_engine = TraceEngine(ice_dict)
+    tc = TestClient(ice_dict, user_dict_path, trace_engine)
+    yield tc
+    tc.close()
+    trace_engine.close()

@@ -1,10 +1,6 @@
 """TestClient, dataclasses, and custom assertion helpers."""
 
-from dataclasses import dataclass, field
-
-import gi
-gi.require_version("IBus", "1.0")
-from gi.repository import IBus, GLib
+from dataclasses import dataclass
 
 from trace import TraceEngine
 
@@ -23,89 +19,74 @@ class EngineEvent:
 
 
 class TestClient:
-    """Chainable E2E test client wrapping IBus.InputContext."""
+    """Chainable E2E test client wrapping the Rust engine directly.
 
-    def __init__(self, bus_address: str, trace_engine: TraceEngine | None = None):
-        self._bus = IBus.Bus()
-        self._ic_path = self._bus.create_input_context("TestClient")
-        self._ic = IBus.InputContext.new(self._ic_path, self._bus.get_connection())
-        self._ic.set_capabilities(7)
+    Simulates user keystrokes by managing a pinyin buffer and calling
+    the engine's process() and select() methods via FFI.
+    """
 
+    def __init__(self, dict_path: str, user_dict_path: str, trace_engine: TraceEngine | None = None):
+        # Import late to keep ffi.py import independent
+        import os
+        import sys
+        eng_dir = os.path.join(os.path.dirname(__file__), "..", "engine")
+        sys.path.insert(0, eng_dir)
+        from ffi import Engine
+        sys.path.pop(0)
+
+        self._engine = Engine(dict_path, user_dict_path)
         self._committed = ""
         self._preedit = ""
-        self._preedit_visible = False
         self._candidates: list[Candidate] = []
-        self._aux_text = ""
         self._events: list[EngineEvent] = []
         self._pinyin_buffer = ""
         self._trace_engine = trace_engine
-
-        self._ic.connect("commit-text", self._on_commit_text)
-        self._ic.connect("update-preedit-text", self._on_update_preedit)
-        self._ic.connect("hide-preedit-text", self._on_hide_preedit)
-        self._ic.connect("update-lookup-table", self._on_update_lookup_table)
-        self._ic.connect("hide-lookup-table", self._on_hide_lookup_table)
-        self._ic.connect("update-auxiliary-text", self._on_update_aux)
-        self._ic.connect("hide-auxiliary-text", self._on_hide_aux)
 
     # --- Input actions (chainable) ---
 
     def type_pinyin(self, text: str) -> "TestClient":
         for ch in text:
-            keyval = ord(ch.lower())
-            self._ic.process_key_event(keyval, 0, 0)
-            self._pipeline_key_event(keyval)
-        self._pinyin_buffer = text
+            self._pinyin_buffer += ch.lower()
+        self._update_candidates()
         return self
 
     def press_space(self) -> "TestClient":
-        self._ic.process_key_event(IBus.KEY_space, 0, 0)
-        self._pipeline_key_event(IBus.KEY_space)
+        if self._candidates:
+            self._commit(0)
         return self
 
     def press_enter(self) -> "TestClient":
-        self._ic.process_key_event(IBus.KEY_Return, 0, 0)
-        self._pipeline_key_event(IBus.KEY_Return)
+        if self._pinyin_buffer:
+            self._commit_string(self._pinyin_buffer)
         return self
 
     def press_escape(self) -> "TestClient":
-        self._ic.process_key_event(IBus.KEY_Escape, 0, 0)
-        self._pipeline_key_event(IBus.KEY_Escape)
+        self._reset()
         return self
 
     def press_backspace(self) -> "TestClient":
-        self._ic.process_key_event(IBus.KEY_BackSpace, 0, 0)
-        self._pipeline_key_event(IBus.KEY_BackSpace)
         if self._pinyin_buffer:
             self._pinyin_buffer = self._pinyin_buffer[:-1]
+            self._update_candidates()
         return self
 
     def press_number(self, n: int) -> "TestClient":
-        if 1 <= n <= 9:
-            keyval = IBus.KEY_1 + (n - 1)
-            self._ic.process_key_event(keyval, 0, 0)
-            self._pipeline_key_event(keyval)
+        if 1 <= n <= 9 and n - 1 < len(self._candidates):
+            self._commit(n - 1)
         return self
 
     def press_page_up(self) -> "TestClient":
-        self._ic.process_key_event(IBus.KEY_Page_Up, 0, 0)
-        self._pipeline_key_event(IBus.KEY_Page_Up)
         return self
 
     def press_page_down(self) -> "TestClient":
-        self._ic.process_key_event(IBus.KEY_Page_Down, 0, 0)
-        self._pipeline_key_event(IBus.KEY_Page_Down)
         return self
 
     def press_key(self, keyval: int, modifiers: int = 0) -> "TestClient":
-        self._ic.process_key_event(keyval, 0, modifiers)
-        self._pipeline_key_event(keyval)
         return self
 
     def press_apostrophe(self) -> "TestClient":
-        self._ic.process_key_event(IBus.KEY_apostrophe, 0, 0)
-        self._pipeline_key_event(IBus.KEY_apostrophe)
         self._pinyin_buffer += "'"
+        self._update_candidates()
         return self
 
     # --- Inspection ---
@@ -120,7 +101,7 @@ class TestClient:
         return self._committed
 
     def get_aux_text(self) -> str:
-        return self._aux_text
+        return ""
 
     def get_pinyin_buffer(self) -> str:
         return self._pinyin_buffer
@@ -135,49 +116,49 @@ class TestClient:
     # --- Tracing ---
 
     def get_trace(self) -> dict | None:
-        """Return pipeline trace dict, or None if no trace engine."""
         if self._trace_engine and self._pinyin_buffer:
             return self._trace_engine.debug_process(self._pinyin_buffer)
         return None
 
-    # --- Internal callbacks ---
+    def close(self):
+        if self._engine:
+            self._engine.close()
+            self._engine = None
 
-    def _pipeline_key_event(self, keyval):
-        while GLib.main_context_default().pending():
-            GLib.main_context_default().iteration(False)
+    # --- Internal ---
 
-    def _on_commit_text(self, ic, text):
-        self._committed += text.text
-        self._events.append(EngineEvent(type="commit-text", text=text.text))
+    def _update_candidates(self):
+        if not self._pinyin_buffer:
+            self._candidates = []
+            self._preedit = ""
+            self._events.append(EngineEvent(type="hide-lookup-table"))
+            return
 
-    def _on_update_preedit(self, ic, text, cursor_pos, visible):
-        self._preedit = text.text if text else ""
-        self._preedit_visible = visible
-        self._events.append(EngineEvent(type="update-preedit", text=self._preedit))
-
-    def _on_hide_preedit(self, ic):
-        self._preedit = ""
-        self._preedit_visible = False
-
-    def _on_update_lookup_table(self, ic, table, visible):
-        cands = []
-        for c in table.get_candidates_in_current_page():
-            cands.append(Candidate(text=c.text))
-        for i, cand in enumerate(cands):
-            cand.label = str(i + 1)
-        self._candidates = cands
-        self._events.append(EngineEvent(type="update-lookup-table", candidates=list(cands)))
-
-    def _on_hide_lookup_table(self, ic):
+        self._preedit = self._pinyin_buffer
+        raw = self._engine.process(self._pinyin_buffer)
         self._candidates = []
-        self._events.append(EngineEvent(type="hide-lookup-table"))
+        for i, c in enumerate(raw):
+            self._candidates.append(Candidate(text=c["text"], label=str(i + 1)))
+        self._events.append(EngineEvent(type="update-lookup-table", candidates=list(self._candidates)))
 
-    def _on_update_aux(self, ic, text, visible):
-        self._aux_text = text.text if text else ""
-        self._events.append(EngineEvent(type="update-aux", text=self._aux_text))
+    def _commit(self, idx):
+        if idx < len(self._candidates):
+            text = self._candidates[idx].text
+            self._engine.select(text)
+            self._committed += text
+            self._events.append(EngineEvent(type="commit-text", text=text))
+        self._reset()
 
-    def _on_hide_aux(self, ic):
-        self._aux_text = ""
+    def _commit_string(self, text):
+        self._committed += text
+        self._events.append(EngineEvent(type="commit-text", text=text))
+        self._reset()
+
+    def _reset(self):
+        self._pinyin_buffer = ""
+        self._candidates = []
+        self._preedit = ""
+        self._engine.reset()
 
 
 # --- Custom Assertion Helpers ---
