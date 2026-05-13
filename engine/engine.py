@@ -17,20 +17,26 @@ class IceIBusEngine(IBus.Engine):
     )
     USER_DICT_PATH = os.path.expanduser("~/.local/share/ibus-ice/user.dict")
 
-    def __init__(self, bus, object_path, engine_name):
-        # Initialize all attributes to safe defaults before super().__init__
-        # in case super().__init__ fails (e.g., when instantiated via g_object_new).
+    def __init__(self, bus=None, object_path=None, engine_name=None, **kwargs):
+        # Initialize all attributes to safe defaults first.
         self._engine = None
         self._pinyin_buffer = ""
         self._candidates = []
         self._lookup_table = IBus.LookupTable.new(5, 0, True, True)
 
+        # IBus.Engine is a GObject. When instantiated via g_object_new()
+        # (e.g. by the Factory), bus/object_path/engine_name are None and
+        # the real values are passed as GObject constructor properties.
+        # Accept bus=None so __init__ always succeeds.
         try:
-            super().__init__(
-                engine_name=engine_name,
-                object_path=object_path,
-                connection=bus.get_connection(),
-            )
+            if bus is not None and object_path is not None and engine_name is not None:
+                super().__init__(
+                    engine_name=engine_name,
+                    object_path=object_path,
+                    connection=bus.get_connection(),
+                )
+            else:
+                super().__init__(**kwargs)
         except Exception as e:
             sys.stderr.write(f"ibus-ice: super().__init__ failed: {e}\n")
             sys.stderr.flush()
