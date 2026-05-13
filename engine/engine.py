@@ -18,11 +18,23 @@ class IceIBusEngine(IBus.Engine):
     USER_DICT_PATH = os.path.expanduser("~/.local/share/ibus-ice/user.dict")
 
     def __init__(self, bus, object_path, engine_name):
-        super().__init__(
-            engine_name=engine_name,
-            object_path=object_path,
-            connection=bus.get_connection(),
-        )
+        # Initialize all attributes to safe defaults before super().__init__
+        # in case super().__init__ fails (e.g., when instantiated via g_object_new).
+        self._engine = None
+        self._pinyin_buffer = ""
+        self._candidates = []
+        self._lookup_table = IBus.LookupTable.new(5, 0, True, True)
+
+        try:
+            super().__init__(
+                engine_name=engine_name,
+                object_path=object_path,
+                connection=bus.get_connection(),
+            )
+        except Exception as e:
+            sys.stderr.write(f"ibus-ice: super().__init__ failed: {e}\n")
+            sys.stderr.flush()
+            return
 
         os.makedirs(os.path.dirname(self.USER_DICT_PATH), exist_ok=True)
 
@@ -31,10 +43,6 @@ class IceIBusEngine(IBus.Engine):
         except RuntimeError as e:
             print(f"ibus-ice: Failed to initialize engine: {e}", file=sys.stderr)
             self._engine = None
-
-        self._pinyin_buffer = ""
-        self._candidates = []
-        self._lookup_table = IBus.LookupTable.new(5, 0, True, True)
 
     def do_process_key_event(self, keyval, keycode, state):
         if self._engine is None:
