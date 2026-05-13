@@ -25,7 +25,7 @@ impl DoubleArrayTrie {
         let mut check = vec![-1i64; INITIAL_SIZE];
 
         for (key, payload_id) in &keys {
-            Self::insert(&mut base, &mut check, key, *payload_id as usize);
+            Self::insert(&mut base, &mut check, key, *payload_id as usize, &mut 1i64);
         }
 
         DoubleArrayTrie { base, check }
@@ -39,9 +39,9 @@ impl DoubleArrayTrie {
         }
     }
 
-    fn find_base(base: &mut Vec<i64>, check: &mut Vec<i64>, children: &[u8]) -> i64 {
-        // Search for a position where all children's transitions are free
-        let mut s: i64 = 1;
+    fn find_base(base: &mut Vec<i64>, check: &mut Vec<i64>, children: &[u8], cursor: &mut i64) -> i64 {
+        let mut s = *cursor;
+        if s < 1 { s = 1; }
         loop {
             let mut all_free = true;
             for &c in children {
@@ -53,13 +53,14 @@ impl DoubleArrayTrie {
                 }
             }
             if all_free {
+                *cursor = s + 1;
                 return s;
             }
             s += 1;
         }
     }
 
-    fn insert(base: &mut Vec<i64>, check: &mut Vec<i64>, key: &[u8], payload_id: usize) {
+    fn insert(base: &mut Vec<i64>, check: &mut Vec<i64>, key: &[u8], payload_id: usize, cursor: &mut i64) {
         let mut s = ROOT;
         let mut i = 0;
 
@@ -71,7 +72,7 @@ impl DoubleArrayTrie {
                 base[s] = 0;
 
                 let children = if 0 == byte { vec![0u8] } else { vec![0u8, byte] };
-                let new_base = Self::find_base(base, check, &children);
+                let new_base = Self::find_base(base, check, &children, cursor);
                 base[s] = new_base;
 
                 let term_t = new_base as usize;
@@ -106,7 +107,7 @@ impl DoubleArrayTrie {
                     children.push(byte);
                 }
 
-                let new_base = Self::find_base(base, check, &children);
+                let new_base = Self::find_base(base, check, &children, cursor);
 
                 for &c in &children {
                     if c == byte {
@@ -145,7 +146,7 @@ impl DoubleArrayTrie {
         if base[s] < 0 {
             let old_payload = (-base[s] - 1) as usize;
             base[s] = 0;
-            let new_base = Self::find_base(base, check, &[0u8, 1u8]);
+            let new_base = Self::find_base(base, check, &[0u8, 1u8], cursor);
             base[s] = new_base;
             Self::ensure_capacity(base, check, new_base as usize + 1);
             base[new_base as usize] = -(old_payload as i64 + 1);
@@ -163,7 +164,7 @@ impl DoubleArrayTrie {
                 slot += 1;
             }
             let children = if slot == 0 { vec![0u8] } else { vec![slot as u8] };
-            let new_base = Self::find_base(base, check, &children);
+            let new_base = Self::find_base(base, check, &children, cursor);
             if new_base != old_base {
                 let mut all_children: Vec<u8> = Vec::new();
                 for c in 0u8..=255u8 {
