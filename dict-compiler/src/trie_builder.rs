@@ -1,15 +1,15 @@
-use cedarwood::Cedar;
+use cedar::Cedar;
 use std::io::{self, Read, Seek, Write};
 
 use crate::perf;
 use crate::parser::DictEntry;
 
-/// Build a cedarwood double-array trie from DictEntry records.
+/// Build a double-array trie from DictEntry records.
 /// Keys are space-joined pinyin strings; values are entry indices.
 pub fn build_trie(entries: &[DictEntry]) -> Cedar {
     let total = entries.len();
 
-    // cedarwood overwrites duplicate keys, so append \x01 + entry
+    // The DAT overwrites duplicate keys, so append \x01 + entry
     // index to make every key unique.  common_prefix_predict still
     // works because all entries sharing the same pinyin start with
     // the same prefix (up to the first \x01).
@@ -60,7 +60,7 @@ pub fn build_trie(entries: &[DictEntry]) -> Cedar {
 ///     u8        word_len   (char count)
 ///
 /// At load time, we reconstruct the DictEntry list and call
-/// cedarwood's build() — O(n) and fast.
+/// build() — O(n) and fast.
 pub fn serialize_trie<W: Write>(_cedar: &Cedar, writer: &mut W, entries: &[DictEntry]) -> io::Result<()> {
     // Magic
     writer.write_all(b"IBUSIC03")?;
@@ -190,8 +190,7 @@ mod tests {
     fn test_lookup_miss() {
         let entries = vec![make_entry("中", "zhong", 100)];
         let cedar = build_trie(&entries);
-        let results = cedar.common_prefix_predict("abc").unwrap();
-        assert!(results.is_empty());
+        assert!(cedar.common_prefix_predict("abc").is_none());
     }
 
     #[test]

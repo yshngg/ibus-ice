@@ -1,4 +1,4 @@
-use cedarwood::Cedar;
+use cedar::Cedar;
 use std::fs;
 use std::io::Read;
 
@@ -83,7 +83,7 @@ impl Dictionary {
     pub fn lookup(&self, key: &str) -> Vec<DictEntry> {
         let mut results = Vec::new();
 
-        // cedarwood's common_prefix_predict returns all entries whose key
+        // common_prefix_predict returns all entries whose key
         // starts with `key`.  Since our keys are "pinyin\x00_index", this
         // correctly returns all entries with the given pinyin prefix.
         if let Some(matches) = self.cedar.common_prefix_predict(key) {

@@ -8,4 +8,4 @@ crate-type = ["cdylib"]
 
 [dependencies]
 memmap2 = "0.9"
-cedarwood = "0.4"
+cedar = { path = "../cedar" }
