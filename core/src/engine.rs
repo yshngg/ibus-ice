@@ -25,14 +25,17 @@ impl IceEngine {
 
     pub fn process(&mut self, pinyin: &str) -> Vec<Candidate> {
         self.current_pinyin = pinyin.to_string();
-        let input_complete = pinyin.ends_with(' ');
-
         let clean_pinyin = pinyin.trim().to_lowercase();
+        let input_complete = pinyin.ends_with(' ');
+        self._generate_ranked(&clean_pinyin, input_complete)
+    }
+
+    fn _generate_ranked(&self, clean_pinyin: &str, input_complete: bool) -> Vec<Candidate> {
         if clean_pinyin.is_empty() {
             return Vec::new();
         }
 
-        let mut candidates = candidate::generate(&self.dict, &clean_pinyin, input_complete);
+        let mut candidates = candidate::generate(&self.dict, clean_pinyin, input_complete);
 
         for c in &mut candidates {
             c.user_boost = self.user_dict.get_boost(&c.text);
@@ -48,7 +51,7 @@ impl IceEngine {
         let clean_pinyin = pinyin.trim().to_lowercase();
         let mut json = String::new();
 
-        // Segmentation
+        // Segmentation trace
         let segmentations = segment(&clean_pinyin);
         let mut pos: usize = 0;
         let mut seg_entries: Vec<(String, usize, usize, usize)> = Vec::new();
@@ -62,13 +65,8 @@ impl IceEngine {
             }
         }
 
-        // Candidates with ranking
-        let mut candidates = crate::candidate::generate(&self.dict, &clean_pinyin, false);
-        for c in &mut candidates {
-            c.user_boost = self.user_dict.get_boost(&c.text);
-        }
-        self.ranker.rank(&mut candidates);
-        candidates.truncate(50);
+        // Candidates with ranking (reuses shared pipeline)
+        let candidates = self._generate_ranked(&clean_pinyin, false);
 
         // Build JSON manually
         fn esc(s: &str) -> String {

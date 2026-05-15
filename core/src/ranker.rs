@@ -33,8 +33,15 @@ impl Ranker for WeightedRanker {
                 + c.user_boost * self.w_user
                 + exact_bonus;
         }
-        // Sort descending by score
-        candidates.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+        // Sort descending by score, then by higher freq, then shorter word_len,
+        // then lexicographically for deterministic output
+        candidates.sort_by(|a, b| {
+            b.score.partial_cmp(&a.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+                .then_with(|| b.freq.cmp(&a.freq))
+                .then_with(|| a.word_len.cmp(&b.word_len))
+                .then_with(|| a.text.cmp(&b.text))
+        });
     }
 }
 

@@ -19,16 +19,7 @@ pub fn generate(dict: &Dictionary, pinyin: &str, input_complete: bool) -> Vec<Ca
         let joined = seg.syllables.join(" ");
         let entries = dict.lookup(&joined);
 
-        // Also try lookup without segmentation (whole string as key for English)
-        let entries_direct = if seg.syllables.len() > 1 {
-            dict.lookup(pinyin)
-        } else {
-            Vec::new()
-        };
-
-        let all_entries = [entries, entries_direct].concat();
-
-        for entry in &all_entries {
+        for entry in &entries {
             candidates.push(Candidate {
                 text: entry.text.clone(),
                 freq: entry.freq,
@@ -49,11 +40,9 @@ pub fn generate(dict: &Dictionary, pinyin: &str, input_complete: bool) -> Vec<Ca
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
     fn test_generate_empty_for_no_dict() {
-        let candidates: Vec<Candidate> = Vec::new();
+        let candidates: Vec<crate::candidate::Candidate> = Vec::new();
         assert!(candidates.is_empty());
     }
 }
