@@ -3,26 +3,27 @@
 //! Emits JSON Lines events to stderr.  Pipe them to scripts/profile-dict.py.
 //! Set DICT_PROFILE=1 to enable (off by default for zero-overhead production).
 
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::OnceLock;
 use std::time::Instant;
 
-static mut START: Option<Instant> = None;
-static mut ENABLED: bool = false;
+static ENABLED: AtomicBool = AtomicBool::new(false);
+static START: OnceLock<Instant> = OnceLock::new();
 
 pub fn init() {
-    unsafe {
-        ENABLED = std::env::var("DICT_PROFILE").unwrap_or_default() == "1";
-        if ENABLED {
-            START = Some(Instant::now());
-        }
+    let enabled = std::env::var("DICT_PROFILE").unwrap_or_default() == "1";
+    if enabled {
+        START.set(Instant::now()).ok();
     }
+    ENABLED.store(enabled, Ordering::Relaxed);
 }
 
 pub fn enabled() -> bool {
-    unsafe { ENABLED }
+    ENABLED.load(Ordering::Relaxed)
 }
 
 fn elapsed_ms() -> f64 {
-    unsafe { START.unwrap().elapsed().as_secs_f64() * 1000.0 }
+    START.get().map(|s| s.elapsed().as_secs_f64() * 1000.0).unwrap_or(0.0)
 }
 
 fn emit(category: &str, data: &str) {
