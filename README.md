@@ -30,15 +30,16 @@ See [docs/architecture.md](docs/architecture.md) for the full design.
 
 | Directory | Description |
 |-----------|-------------|
+| `cedar/` | Internal double-array trie (zero deps, ported from cedarwood) |
 | `core/` | Rust shared library (cdylib -> `libibus_ice_core.so`) |
-| `dict-compiler/` | Build-time CLI to compile rime-ice YAML -> binary Trie |
+| `dict-compiler/` | Build-time CLI to compile rime-ice YAML -> binary dict |
 | `engine/` | IBus engine adapter (Python, shell wrapper, component XML) |
 | `scripts/` | Build and install scripts |
 
 ## Testing
 
 ```bash
-make test           # Rust unit tests (24 tests)
+make test           # Rust unit tests (46 tests)
 make test-e2e       # E2E test environment (25 tests)
 ```
 
