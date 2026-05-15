@@ -15,13 +15,13 @@ echo "Building dictionary compiler..."
 cargo build --release -p dict-compiler
 
 echo "Compiling dictionaries..."
-"$DICT_COMPILER" "$OUTPUT_DICT" \
-    "$DATA_DIR/cn_dicts/8105.dict.yaml" \
-    "$DATA_DIR/cn_dicts/base.dict.yaml" \
-    "$DATA_DIR/cn_dicts/ext.dict.yaml" \
-    "$DATA_DIR/cn_dicts/others.dict.yaml" \
-    "$DATA_DIR/en_dicts/en.dict.yaml" \
-    "$DATA_DIR/en_dicts/en_ext.dict.yaml"
+# Find all dict.yaml files in rime-ice subdirectories
+mapfile -t DICT_FILES < <(find "$DATA_DIR" -name "*.dict.yaml" | sort)
+if [ ${#DICT_FILES[@]} -eq 0 ]; then
+    echo "Error: No .dict.yaml files found in $DATA_DIR" >&2
+    exit 1
+fi
+"$DICT_COMPILER" "$OUTPUT_DICT" "${DICT_FILES[@]}"
 
 echo "Dict compiled: $OUTPUT_DICT"
 ls -lh "$OUTPUT_DICT"
