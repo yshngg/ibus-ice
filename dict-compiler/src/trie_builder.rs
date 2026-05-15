@@ -1,5 +1,5 @@
 use cedar::Cedar;
-use std::io::{self, Read, Seek, Write};
+use std::io::{self, Write};
 
 use crate::perf;
 use crate::parser::DictEntry;
@@ -91,66 +91,6 @@ pub fn serialize_trie<W: Write>(_cedar: &Cedar, writer: &mut W, entries: &[DictE
     Ok(())
 }
 
-/// Load a dictionary written by `serialize_trie`.
-/// Rebuilds the cedar trie from stored entries.
-pub struct CompiledDict {
-    pub cedar: Cedar,
-    pub entries: Vec<DictEntry>,
-}
-
-pub fn load_dict<R: Read + Seek>(reader: &mut R) -> io::Result<CompiledDict> {
-    // Magic
-    let mut magic = [0u8; 8];
-    reader.read_exact(&mut magic)?;
-    if &magic != b"IBUSIC03" {
-        return Err(io::Error::new(io::ErrorKind::InvalidData, "invalid magic"));
-    }
-
-    // Num entries
-    let mut num_buf = [0u8; 4];
-    reader.read_exact(&mut num_buf)?;
-    let num_entries = u32::from_le_bytes(num_buf) as usize;
-
-    // Read all entries
-    let mut entries: Vec<DictEntry> = Vec::with_capacity(num_entries);
-    for _ in 0..num_entries {
-        // Pinyin
-        let mut len_buf = [0u8; 2];
-        reader.read_exact(&mut len_buf)?;
-        let pinyin_len = u16::from_le_bytes(len_buf) as usize;
-        let mut pinyin_bytes = vec![0u8; pinyin_len];
-        reader.read_exact(&mut pinyin_bytes)?;
-        let pinyin_str = String::from_utf8(pinyin_bytes)
-            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
-        let pinyin: Vec<String> = pinyin_str.split_whitespace().map(|s| s.to_string()).collect();
-
-        // Text
-        reader.read_exact(&mut len_buf)?;
-        let text_len = u16::from_le_bytes(len_buf) as usize;
-        let mut text_bytes = vec![0u8; text_len];
-        reader.read_exact(&mut text_bytes)?;
-        let text = String::from_utf8(text_bytes)
-            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
-
-        // Freq
-        let mut freq_buf = [0u8; 4];
-        reader.read_exact(&mut freq_buf)?;
-        let freq = u32::from_le_bytes(freq_buf);
-
-        // Word len
-        let mut wl_buf = [0u8; 1];
-        reader.read_exact(&mut wl_buf)?;
-        let _word_len = wl_buf[0];
-
-        entries.push(DictEntry { text, pinyin, freq });
-    }
-
-    // Rebuild cedar trie
-    let cedar = build_trie(&entries);
-
-    Ok(CompiledDict { cedar, entries })
-}
-
 // =============================================================================
 // Tests
 // =============================================================================
@@ -158,6 +98,65 @@ pub fn load_dict<R: Read + Seek>(reader: &mut R) -> io::Result<CompiledDict> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::{Read, Seek};
+
+    struct CompiledDict {
+        pub cedar: Cedar,
+        pub entries: Vec<DictEntry>,
+    }
+
+    fn load_dict<R: Read + Seek>(reader: &mut R) -> io::Result<CompiledDict> {
+        // Magic
+        let mut magic = [0u8; 8];
+        reader.read_exact(&mut magic)?;
+        if &magic != b"IBUSIC03" {
+            return Err(io::Error::new(io::ErrorKind::InvalidData, "invalid magic"));
+        }
+
+        // Num entries
+        let mut num_buf = [0u8; 4];
+        reader.read_exact(&mut num_buf)?;
+        let num_entries = u32::from_le_bytes(num_buf) as usize;
+
+        // Read all entries
+        let mut entries: Vec<DictEntry> = Vec::with_capacity(num_entries);
+        for _ in 0..num_entries {
+            // Pinyin
+            let mut len_buf = [0u8; 2];
+            reader.read_exact(&mut len_buf)?;
+            let pinyin_len = u16::from_le_bytes(len_buf) as usize;
+            let mut pinyin_bytes = vec![0u8; pinyin_len];
+            reader.read_exact(&mut pinyin_bytes)?;
+            let pinyin_str = String::from_utf8(pinyin_bytes)
+                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+            let pinyin: Vec<String> = pinyin_str.split_whitespace().map(|s| s.to_string()).collect();
+
+            // Text
+            reader.read_exact(&mut len_buf)?;
+            let text_len = u16::from_le_bytes(len_buf) as usize;
+            let mut text_bytes = vec![0u8; text_len];
+            reader.read_exact(&mut text_bytes)?;
+            let text = String::from_utf8(text_bytes)
+                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+
+            // Freq
+            let mut freq_buf = [0u8; 4];
+            reader.read_exact(&mut freq_buf)?;
+            let freq = u32::from_le_bytes(freq_buf);
+
+            // Word len
+            let mut wl_buf = [0u8; 1];
+            reader.read_exact(&mut wl_buf)?;
+            let _word_len = wl_buf[0];
+
+            entries.push(DictEntry { text, pinyin, freq });
+        }
+
+        // Rebuild cedar trie
+        let cedar = build_trie(&entries);
+
+        Ok(CompiledDict { cedar, entries })
+    }
 
     fn make_entry(text: &str, pinyin: &str, freq: u32) -> DictEntry {
         DictEntry {
