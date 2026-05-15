@@ -83,6 +83,16 @@ class TestClient:
         return self
 
     def press_key(self, keyval: int, modifiers: int = 0) -> "TestClient":
+        # Control, Alt, and Super modifiers suppress text input
+        CONTROL_MASK = 0x4
+        ALT_MASK = 0x8
+        SUPER_MASK = 0x40
+        if modifiers & (CONTROL_MASK | ALT_MASK | SUPER_MASK):
+            return self
+        # Printable ASCII characters are treated as typing
+        if 32 <= keyval <= 126:
+            self._pinyin_buffer += chr(keyval).lower()
+            self._update_candidates()
         return self
 
     def press_apostrophe(self) -> "TestClient":
@@ -402,10 +412,10 @@ def _build_candidate_diff(expected: list[str], actual: list[str]) -> str:
 
 
 def assert_committed(client: TestClient, expected: str) -> None:
-    """Assert the committed text contains the expected string."""
+    """Assert the committed text exactly matches the expected string."""
     actual = client.get_committed()
-    assert expected in actual, (
-        f"Expected committed text to contain {expected!r}, "
+    assert actual == expected, (
+        f"Expected committed text {expected!r}, "
         f"but got {actual!r}"
     )
 
