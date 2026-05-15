@@ -5,4 +5,4 @@
 IBUS_ICE_DATA_DIR="@datadir@"
 export IBUS_ICE_DATA_DIR
 
-exec /usr/bin/python3 @enginedir@/main.py --ibus "$@"
+exec /usr/bin/env python3 @enginedir@/main.py --ibus "$@"
